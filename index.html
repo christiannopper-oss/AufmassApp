@@ -177,7 +177,6 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
     <div class="spacer"></div>
     <button class="tbtn confirm" id="btn-ref-confirm" style="display:none" onclick="confirmRef()">✓ Bestätigen</button>
     <button class="tbtn" id="btn-schnitt-draw" style="display:none" onclick="startSchnittDraw()">✦ Schnitt zeichnen</button>
-    <span id="btn-schnitt-active" style="display:none;padding:4px 10px;background:#b8914a22;border:1px solid #b8914a;border-radius:5px;font-size:11px;color:#8a5f00;font-weight:600">✦ Punkte setzen</span>
     <button class="tbtn confirm" id="btn-schnitt-confirm" style="display:none" onclick="confirmSchnitt()">✓ Auswerten</button>
     <button class="tbtn" id="btn-schnitt-undo" style="display:none" onclick="schnittUndo()">← Zurück</button>
     <button class="tbtn warn" id="btn-trauf" style="display:none" onclick="setTool('trauf')">🏠 Traufseite</button>
@@ -194,7 +193,6 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
     <button class="tbtn" onclick="document.getElementById('fi-cam').click()">📷</button>
     <input id="fi" type="file" accept="application/pdf,image/*" style="display:none" onchange="loadFile(this)">
     <input id="fi-cam" type="file" accept="image/*" capture="environment" style="display:none" onchange="loadFile(this)">
-    <input id="fi-schnitt" type="file" accept="application/pdf,image/*" style="display:none" onchange="loadFileForSchnitt(this)">
   </div>
   <div id="statusbar">
     <span id="st-z">Zoom 100%</span>
@@ -309,7 +307,7 @@ const sb = {
   async query(table, method='GET', body=null, filter=''){
     const url=`${SUPABASE_URL}/rest/v1/${table}${filter}`;
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':method==='POST'?'return=representation':''},body:body?JSON.stringify(body):null});
-    if(!res.ok){const txt=await res.text();throw new Error('HTTP '+res.status+': '+txt);}
+    if(!res.ok)throw new Error(await res.text());
     const text=await res.text();return text?JSON.parse(text):null;
   },
   get:(t,f='')=>sb.query(t,'GET',null,f),
@@ -381,11 +379,7 @@ async function loadProjects(){
   try{
     projects=await sb.get('projects','?order=created_at.desc')||[];
     renderProjects();
-  }catch(e){
-    console.error(e);
-    const list=document.getElementById('project-list');
-    if(list)list.innerHTML='<div style="padding:20px;color:#c0392b;font-size:12px;background:#fff0f0;border-radius:8px;margin:16px">⚠️ Verbindungsfehler:<br><b>'+e.message+'</b><br><br>Supabase URL: '+SUPABASE_URL+'<br>Key (erste 20 Zeichen): '+SUPABASE_KEY.substring(0,20)+'...</div>';
-  }
+  }catch(e){console.error(e);}
 }
 
 function renderProjects(){
@@ -633,7 +627,7 @@ function openOverlay(mode){
     title.textContent='Neues Geschoss';
     body.innerHTML=`
       <label>BEZEICHNUNG *</label><input id="ov-name" placeholder="z.B. Erdgeschoss, Dachgeschoss">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer" onclick="toggleOvDach()">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked">
         <input type="checkbox" id="ov-dach" onclick="event.stopPropagation()" style="width:auto;margin:0;accent-color:#c8a96e">
         <span style="font-size:11px;color:#888">Dieses Geschoss hat Dachschrägen</span>
       </div>`;
@@ -782,7 +776,7 @@ function roomStats(rm){
     let knieH=dc.kniestockH||1.2;
     let firstH=dc.firstH||2.8;
     let neigRad=(dc.neigung||38)*Math.PI/180;
-    let normH=dc.normH||2.5; // normale Raumhöhe aus Schnitt
+    let normH=2.5; // normale Raumhöhe (abgehängte Decke / Drempelhöhe)
 
     const sp=dc.schnittPts;
     if(sp&&sp.length>=5&&scaleS){
@@ -1194,28 +1188,8 @@ async function closeRoom(ok){
 }
 function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
-  if(ok){
-    const rl=parseFloat(document.getElementById('r-len').value);
-    if(rl>0){
-      const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;
-      const newScale=Math.hypot(dx,dy)/rl;
-      scale=newScale;
-      if(viewMode==='schnitt'){
-        scaleSchnitt=newScale;
-        refPtsSchnitt=[...refPts];
-        // Refresh schnitt view → shows "Schnitt zeichnen" button
-        setTimeout(()=>setView('schnitt'),50);
-      } else {
-        scaleGrundriss=newScale;
-        refPtsGrundriss=[...refPts];
-        setTool('draw');
-      }
-      scheduleSave();
-    }
-  }
-  refConfirmed=true;
-  refPts=[];
-  updStatus();updSidebar();draw();
+  if(ok){const rl=parseFloat(document.getElementById('r-len').value);if(rl>0){const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;scale=Math.hypot(dx,dy)/rl;scheduleSave();}}
+  refConfirmed=true;setTool('draw');updStatus();updSidebar();draw();
 }
 function openEntry(ri,mode){entryTarget={roomIdx:ri,mode};document.getElementById('entry-modal-title').textContent=mode==='abzug'?'Abzug hinzufügen':'Zusatzfläche hinzufügen';document.getElementById('e-name').value=mode==='abzug'?'Tür':'Stichwand';document.getElementById('e-b').value=mode==='abzug'?'0.90':'1.00';document.getElementById('e-h').value=mode==='abzug'?'2.00':'1.20';document.getElementById('e-n').value='1';document.getElementById('e-vob').checked=false;document.getElementById('vob-row').style.display=mode==='abzug'?'flex':'none';centerModal('mw-entry');setTimeout(()=>document.getElementById('e-name').focus(),50);}
 async function closeEntry(ok){
@@ -1263,10 +1237,6 @@ function generatePDF(project,client,author){
 }
 
 // keyboard
-function toggleOvDach(){
-  const cb=document.getElementById('ov-dach');
-  if(cb)cb.checked=!cb.checked;
-}
 function toggleDachOv(){
   const cb=document.getElementById('ov-dach');
   if(cb){cb.checked=!cb.checked;document.getElementById('ov-dach-fields').style.display=cb.checked?'block':'none';}
@@ -1449,16 +1419,9 @@ cv.addEventListener('pointercancel',e=>{delete activePtr[e.pointerId];clearLp();
 function handleDrop(e){e.preventDefault();const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')loadPDF(f);}
 function loadFile(inp){
   if(!inp.files[0])return;
+  // ensure we load into the correct view
   loadPDF(inp.files[0]);
-  inp.value='';
-}
-
-function loadFileForSchnitt(inp){
-  if(!inp.files[0])return;
-  // Force schnitt view before loading
-  if(viewMode!=='schnitt')setView('schnitt');
-  loadPDF(inp.files[0]);
-  inp.value='';
+  inp.value=''; // reset so same file can be reloaded
 }
 async function loadPageImage(pageNum){
   if(pageImages[pageNum])return pageImages[pageNum];
@@ -1574,6 +1537,7 @@ function setView(v){
   const isDach=currentFloor&&currentFloor.dach_config&&currentFloor.dach_config.aktiv;
   document.getElementById('btn-gdr')&&(document.getElementById('btn-gdr').style.display=isDach?'':'none');
   document.getElementById('btn-sch')&&(document.getElementById('btn-sch').style.display=isDach?'':'none');
+  document.getElementById('btn-schnitt-draw')&&(document.getElementById('btn-schnitt-draw').style.display=isDach&&v==='schnitt'&&!schnittDrawMode?'':'none');
   document.getElementById('btn-trauf')&&(document.getElementById('btn-trauf').style.display=isDach&&v==='grundriss'?'':'none');
   document.getElementById('btn-gdr')&&document.getElementById('btn-gdr').classList.toggle('active',v==='grundriss');
   document.getElementById('btn-sch')&&document.getElementById('btn-sch').classList.toggle('active',v==='schnitt');
@@ -1582,22 +1546,14 @@ function setView(v){
   const sdBtn=document.getElementById('btn-schnitt-draw');
   const scBtn=document.getElementById('btn-schnitt-confirm');
   const suBtn=document.getElementById('btn-schnitt-undo');
-  const actInd=document.getElementById('btn-schnitt-active');
   if(v==='schnitt'){
-    const hasRef=scaleSchnitt!==null;
-    // "Schnitt zeichnen" button: only when calibrated, not drawing, not closed
-    if(sdBtn)sdBtn.style.display=(hasRef&&!schnittDrawMode&&!schnittClosed)?'':'none';
-    // "Punkte setzen" indicator: only while actively drawing
-    if(actInd)actInd.style.display=schnittDrawMode?'':'none';
-    // "Auswerten" button: only when polygon is closed
-    if(scBtn)scBtn.style.display=schnittClosed?'':'none';
-    // "Zurück" button: only when pts exist and not closed
-    if(suBtn)suBtn.style.display=(schnittPts.length>0&&!schnittClosed)?'':'none';
+    if(sdBtn)sdBtn.style.display=schnittDrawMode?'none':'';
+    if(scBtn)scBtn.style.display=schnittPts.length>=5?'':'none';
+    if(suBtn)suBtn.style.display=schnittPts.length>0?'':'none';
   } else {
     if(sdBtn)sdBtn.style.display='none';
     if(scBtn)scBtn.style.display='none';
     if(suBtn)suBtn.style.display='none';
-    if(actInd)actInd.style.display='none';
     schnittDrawMode=false;
   }
   draw();updStatus();
@@ -1606,127 +1562,136 @@ function setView(v){
 function startSchnittDraw(){
   schnittClosed=false;
   schnittPts=[];
+  // scaleSchnitt or scale (if just set) must exist
   if(!scaleSchnitt&&!scale){alert('Bitte zuerst das Referenzmaß für den Schnitt setzen!');setTool('ref');return;}
-  if(!scaleSchnitt&&scale)scaleSchnitt=scale;
+  if(!scaleSchnitt&&scale)scaleSchnitt=scale; // sync if needed
   schnittDrawMode=true;
-  setView('schnitt'); // refresh all button states
+  document.getElementById('btn-schnitt-draw').style.display='none';
+  document.getElementById('btn-schnitt-undo').style.display='';
+  document.getElementById('btn-schnitt-confirm').style.display=schnittPts.length>=5?'':'none';
   updStatus();
 }
 function schnittUndo(){
   if(schnittPts.length>0){schnittPts.pop();}
-  if(schnittPts.length===0){
-    schnittDrawMode=false;
-    setView('schnitt'); // refresh button states
-  }
+  if(schnittPts.length===0)schnittDrawMode=false;
   document.getElementById('btn-schnitt-confirm').style.display=schnittPts.length>=5?'':'none';
   document.getElementById('btn-schnitt-draw').style.display=!schnittDrawMode?'':'none';
   draw();updStatus();
 }
 
 function confirmSchnitt(){
-  if(schnittPts.length<4)return; // min 4 pts (can close after 4)
+  if(schnittPts.length<5)return;
+  // pts: [0]=Kniestock links unten, [1]=Traufe links, [2]=First (oder Kehlpunkt), [3]=Traufe rechts (Satteldach) oder [2]=First (Pultdach), ...
+  // Pultdach: 5 pts: bodenL, traufeL, firstL, firstR, bodenR  (oder similar)
+  // Satteldach: 6 pts: bodenL, traufeL, kehlL, kehlR, traufeR, bodenR
   const pts=schnittPts;
   const n=pts.length;
-  const sc=scaleSchnitt||scale;
-  if(!sc){alert('Bitte zuerst kalibrieren!');return;}
-
-  // ── Step 1: Find floor level ──
-  const maxY=Math.max(...pts.map(p=>p.y));
-  const minY=Math.min(...pts.map(p=>p.y));
-  const THRESH=sc*0.08; // tolerance ~8cm
-
-  // ── Step 2: Detect firstlinie (two consecutive pts at same height near top) ──
-  let firstLineStart=null, firstLineEnd=null;
-  for(let i=0;i<n;i++){
-    const a=pts[i], b=pts[(i+1)%n];
-    const dy=Math.abs(a.y-b.y);
-    const avgY=(a.y+b.y)/2;
-    // horizontal segment NOT near floor
-    if(dy<THRESH*2 && Math.abs(avgY-maxY)>THRESH*4){
-      if(!firstLineStart || avgY<(firstLineStart.y+firstLineEnd.y)/2){
-        firstLineStart=a;
-        firstLineEnd=b;
-      }
-    }
-  }
-
-  // ── Step 3: Find traufe pts ──
-  const firstLineY=firstLineStart?(firstLineStart.y+firstLineEnd.y)/2:minY;
-  const traufePts=pts.filter(p=>{
-    const notFloor=Math.abs(p.y-maxY)>THRESH*4;
-    const notFirst=!firstLineStart||Math.abs(p.y-firstLineY)>THRESH*3;
-    return notFloor&&notFirst;
-  });
-
-  // ── Step 4: Calculate geometry ──
-  let kniestockH=1.2;
-  if(traufePts.length>0){
-    const traufeY=Math.max(...traufePts.map(p=>p.y));
-    kniestockH=Math.abs(traufeY-maxY)/sc;
-  }
-  const firstH=Math.abs(firstLineY-maxY)/sc;
-
-  // NormH: look for flat ceiling segment between traufe and first
-  let normH=firstH;
-  for(let i=0;i<n;i++){
-    const a=pts[i], b=pts[(i+1)%n];
-    const dy=Math.abs(a.y-b.y);
-    const avgY=(a.y+b.y)/2;
-    const aboveTraufe=Math.abs(avgY-maxY)>THRESH*4;
-    const belowFirst=avgY>firstLineY+THRESH;
-    if(dy<THRESH*2&&aboveTraufe&&belowFirst){
-      const h=Math.abs(avgY-maxY)/sc;
-      if(h>kniestockH&&h<firstH){normH=h;break;}
-    }
-  }
-
-  // ── Step 5: Neigung from traufe to START of firstline ──
-  let neigung=38;
-  if(firstLineStart&&traufePts.length>0){
-    const leftFirst=firstLineStart.x<=firstLineEnd.x?firstLineStart:firstLineEnd;
-    const rightFirst=firstLineStart.x<=firstLineEnd.x?firstLineEnd:firstLineStart;
-    const leftTraufe=traufePts.reduce((a,b)=>b.x<a.x?b:a);
-    const rightTraufe=traufePts.reduce((a,b)=>b.x>a.x?b:a);
-    const dx=Math.abs(leftFirst.x-leftTraufe.x)/sc;
-    const dy=Math.abs(leftFirst.y-leftTraufe.y)/sc;
-    if(dx>0.05) neigung=Math.atan(dy/dx)*180/Math.PI;
-  } else if(traufePts.length>0){
-    // Pultdach: traufe to highest point
-    const highPt=pts.reduce((a,b)=>b.y<a.y?b:a);
-    const leftTraufe=traufePts.reduce((a,b)=>b.x<a.x?b:a);
-    const dx=Math.abs(highPt.x-leftTraufe.x)/sc;
-    const dy=Math.abs(highPt.y-leftTraufe.y)/sc;
-    if(dx>0.05) neigung=Math.atan(dy/dx)*180/Math.PI;
-  }
-
-  // Dachbreite + Firstbreite
+  // Determine kniestockH: vertical distance from bottom-left to traufe-left
+  // pts[0]=Kniestock unten links, pts[1]=Traufe links oben
+  if(!scale){alert('Bitte zuerst kalibrieren!');return;}
+  const kniestockH=Math.abs(pts[1].y-pts[0].y)/scale;
+  // First: highest point
+  let firstPt=pts[0];
+  for(const p of pts)if(p.y<firstPt.y)firstPt=p;
+  const firstH=Math.abs(firstPt.y-pts[0].y)/scale;
+  // Neigung: angle from traufe to first
+  const traufeL=pts[1];
+  const dx=Math.abs(firstPt.x-traufeL.x)/scale;
+  const dy=Math.abs(firstPt.y-traufeL.y)/scale;
+  const neigung=dx>0?Math.atan(dy/dx)*180/Math.PI:90;
+  // Dachbreite: horizontal span
   const xs=pts.map(p=>p.x);
-  const dachbreite=(Math.max(...xs)-Math.min(...xs))/sc;
-  const firstbreite=firstLineStart?Math.abs(firstLineEnd.x-firstLineStart.x)/sc:0;
-
-  schnittResult={kniestockH,firstH,normH,neigung,dachbreite,firstbreite,ptsCount:n};
-
+  const dachbreite=(Math.max(...xs)-Math.min(...xs))/scale;
+  // Deckenhöhe: if 6 pts, there's a flat section between pts[2] and pts[3]
+  let deckeH=0;
+  if(n===6){
+    // pts[2] and pts[3] are the kehl points (flat ceiling)
+    deckeH=Math.abs(pts[2].y-pts[0].y)/scale;
+  }
+  schnittResult={kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount:n};
   // Save to floor
   if(currentFloor){
-    const updDach={...currentFloor.dach_config,kniestockH,firstH,normH,neigung,dachbreite,firstbreite,schnittPts:pts};
+    const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:pts};
     sb.patch('floors',{dach_config:updDach},'?id=eq.'+currentFloor.id);
     currentFloor.dach_config=updDach;
   }
-
-  const msg='Schnitt ausgewertet! ✓\n'
-    +'Kniestock: '+kniestockH.toFixed(2)+'m\n'
-    +'Normalhöhe: '+normH.toFixed(2)+'m\n'
-    +'Firsthöhe: '+firstH.toFixed(2)+'m\n'
-    +(firstbreite>0?'Firstbreite: '+firstbreite.toFixed(2)+'m\n':'')
-    +'Neigung: '+neigung.toFixed(1)+'°\n'
-    +'Dachbreite: '+dachbreite.toFixed(2)+'m';
-  alert(msg+'\n\nJetzt zum Grundriss wechseln und Räume zeichnen.');
-
-  const sdBtn2=document.getElementById('btn-schnitt-draw');
-  if(sdBtn2)sdBtn2.style.display='none';
-  const actInd2=document.getElementById('btn-schnitt-active');
-  if(actInd2)actInd2.style.display='none';
+  alert('Schnitt ausgewertet!\nKniestock: '+kniestockH.toFixed(2)+'m\nFirst: '+firstH.toFixed(2)+'m\nNeigung: '+neigung.toFixed(1)+'°\nDachbreite: '+dachbreite.toFixed(2)+'m');
   setView('grundriss');
 }
 
+// loadSchnitt removed - loadPDF handles both views
 
+function fitSchnitt(){
+  if(!schnittImg)return;
+  const r=wrap.getBoundingClientRect();
+  const ratio=Math.min((r.width-40)/schnittImg.width,(r.height-40)/schnittImg.height);
+  schnittW=schnittImg.width*ratio;schnittH=schnittImg.height*ratio;
+  schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
+}
+
+function rotatePlan(){
+  if(viewMode==='grundriss'&&rooms.length>0){
+    alert('Bitte zuerst alle Räume löschen bevor der Plan gedreht wird – sonst stimmen die Koordinaten nicht mehr.');return;
+  }
+  imgRotation=(imgRotation+90)%360;
+  const activeImg=viewMode==='schnitt'?schnittImg:img;
+  if(!activeImg)return;
+  const r=wrap.getBoundingClientRect();
+  const odd=imgRotation===90||imgRotation===270;
+  const srcW=odd?activeImg.height:activeImg.width, srcH=odd?activeImg.width:activeImg.height;
+  const ratio=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
+  if(viewMode==='schnitt'){
+    schnittW=srcW*ratio;schnittH=srcH*ratio;
+    schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
+  } else {
+    imgW=srcW*ratio;imgH=srcH*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
+  }
+  draw();
+}
+
+// ── SWIPE TO DELETE in sidebar ────────────────────────────
+function initSwipeDelete(){
+  const list=document.getElementById('rlist');
+  let startX=0,startY=0,target=null,targetIdx=-1;
+  list.addEventListener('touchstart',e=>{
+    const rc=e.target.closest('.rc');
+    if(!rc)return;
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+    target=rc;
+    // find room index
+    const all=[...list.querySelectorAll('.rc')];
+    targetIdx=all.indexOf(rc);
+  },{passive:true});
+  list.addEventListener('touchmove',e=>{
+    if(!target)return;
+    const dx=e.touches[0].clientX-startX;
+    const dy=Math.abs(e.touches[0].clientY-startY);
+    if(dy>20){target=null;return;} // vertical scroll, ignore
+    if(dx<-30){target.style.transform='translateX('+Math.min(0,dx+30)+'px)';target.style.background='#c0392b22';}
+  },{passive:true});
+  list.addEventListener('touchend',e=>{
+    if(!target)return;
+    const dx=e.changedTouches[0].clientX-startX;
+    if(dx<-80&&targetIdx>=0&&targetIdx<rooms.length){
+      target.style.transform='translateX(-100%)';
+      target.style.transition='transform 0.2s';
+      setTimeout(async()=>{
+        const rm=rooms[targetIdx];
+        if(rm.id)await deleteRoomFromDB(rm.id);
+        rooms.splice(targetIdx,1);
+        if(selRoom===targetIdx)selRoom=null;
+        else if(selRoom>targetIdx)selRoom--;
+        updStatus();updSidebar();draw();
+      },200);
+    } else {
+      target.style.transform='';target.style.background='';
+    }
+    target=null;targetIdx=-1;
+  },{passive:true});
+}
+
+// ── INIT ─────────────────────────────────────────────────
+showScreen('project');
+</script>
+</body>
+</html>
