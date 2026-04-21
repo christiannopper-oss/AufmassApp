@@ -633,7 +633,7 @@ function openOverlay(mode){
     title.textContent='Neues Geschoss';
     body.innerHTML=`
       <label>BEZEICHNUNG *</label><input id="ov-name" placeholder="z.B. Erdgeschoss, Dachgeschoss">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer" onclick="toggleOvDach()">
         <input type="checkbox" id="ov-dach" onclick="event.stopPropagation()" style="width:auto;margin:0;accent-color:#c8a96e">
         <span style="font-size:11px;color:#888">Dieses Geschoss hat Dachschrägen</span>
       </div>`;
@@ -1263,6 +1263,10 @@ function generatePDF(project,client,author){
 }
 
 // keyboard
+function toggleOvDach(){
+  const cb=document.getElementById('ov-dach');
+  if(cb)cb.checked=!cb.checked;
+}
 function toggleDachOv(){
   const cb=document.getElementById('ov-dach');
   if(cb){cb.checked=!cb.checked;document.getElementById('ov-dach-fields').style.display=cb.checked?'block':'none';}
