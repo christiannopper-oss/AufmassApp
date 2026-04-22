@@ -301,7 +301,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_pts_grundriss jsonb;
 // Ersetze diese beiden Werte mit deinen eigenen:
 const SUPABASE_URL = 'https://dfobvtluyxikloyphfwf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmb2J2dGx1eXhpa2xveXBoZndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTkzNzcsImV4cCI6MjA5MjE3NTM3N30.X9KiYJRotf9dn8UWt1_mi4kkoEjPdlj4wBkweS1xVI8';
+const SUPABASE_KEY = 'DEIN_ANON_KEY';
 
 const sb = {
   async query(table, method='GET', body=null, filter=''){
@@ -535,7 +535,20 @@ function generateProjectPDF(project,allFloorRooms){
     const wG=per*rm.height;
     const abzSum=(rm.abzuege||[]).reduce((s,e)=>{const av=e.b*e.h;return s+((e.vob&&av<2.5)?0:av*e.n);},0);
     const zusSum=(rm.zusaetze||[]).reduce((s,e)=>s+e.b*e.h*e.n,0);
-    return{a,wG,abzSum,zusSum,wN:Math.max(0,wG-abzSum)+zusSum};
+    let deckeFlat=a, slope=0, deckeGes=a;
+    if(fl.dach_config&&fl.dach_config.aktiv){
+      const rmLocal={...rm,traufKanten:rm.trauf_kanten||rm.traufKanten||[]};
+      const prevFloor=currentFloor, prevScale=scale, prevScaleG=scaleGrundriss, prevScaleS=scaleSchnitt;
+      currentFloor=fl; scale=sc; scaleGrundriss=fl.scale_px_per_m||sc; scaleSchnitt=fl.scale_schnitt||null;
+      const full=roomStats(rmLocal);
+      currentFloor=prevFloor; scale=prevScale; scaleGrundriss=prevScaleG; scaleSchnitt=prevScaleS;
+      if(full.dachStats){
+        deckeFlat=full.dachStats.deckeFlach;
+        slope=full.dachStats.schraegeFlaeche;
+        deckeGes=full.dachStats.deckeGesamt;
+      }
+    }
+    return{a,wG,abzSum,zusSum,wN:Math.max(0,wG-abzSum)+zusSum,deckeFlat,slope,deckeGes};
   }
   let grandWG=0,grandWN=0,grandCeil=0;
   allFloorRooms.forEach(({floor:fl,rooms:fRooms})=>{
@@ -547,9 +560,9 @@ function generateProjectPDF(project,allFloorRooms){
     doc.text(fl.name,ML+2,y+6.5);y+=10;
     tableHeader();
     const sc=fl.scale_px_per_m||null;
-    let flWG=0,flWN=0,flCeil=0;
+    let flWG=0,flWN=0,flCeil=0,flCeilFlat=0,flSlope=0;
     fRooms.forEach((rm,idx)=>{
-      const{a,wG,abzSum,zusSum,wN}=rStats(rm,sc);
+      const{a,wG,abzSum,zusSum,wN,deckeFlat,slope,deckeGes}=rStats(rm,sc);
       checkPage(14);
       const rowColor=idx%2===0?[248,246,242]:[255,255,255];
       doc.setFillColor(...rowColor);doc.rect(ML,y,CW,10,'F');
@@ -558,19 +571,20 @@ function generateProjectPDF(project,allFloorRooms){
       doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);
       if(a!==null){
         doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);
-        doc.text(a.toFixed(2)+' m²',ML+95,y+6.5);
+        doc.text(deckeGes.toFixed(2)+' m²',ML+95,y+6.5);
         doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);
         const delta=zusSum-abzSum;
         if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}
         doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);
         doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);
-        flWG+=wG;flWN+=wN;flCeil+=a;
+        flWG+=wG;flWN+=wN;flCeil+=deckeGes;flCeilFlat+=deckeFlat;flSlope+=slope;
       } else {doc.setTextColor(160,160,160);doc.text('Keine Kalibrierung',ML+60,y+6.5);}
       doc.setDrawColor(220,218,212);doc.line(ML,y+10,ML+CW,y+10);y+=11;
       // detail rows
       checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(130,120,100);
       doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');
       doc.text('  Raumhöhe: '+rm.height.toFixed(2)+' m',ML+2,y+4);y+=6;
+      if(a!==null && (slope>0 || deckeFlat!==a)){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+deckeFlat.toFixed(2)+' m² · Schräge: '+slope.toFixed(2)+' m² · Decke gesamt: '+deckeGes.toFixed(2)+' m²',ML+2,y+4);y+=6;}
       (rm.abzuege||[]).forEach(e=>{checkPage(6);const eff=(e.vob&&e.b*e.h<2.5)?0:e.b*e.h*e.n;doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(160,60,60);doc.text('  − '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n+(e.vob?' (VOB)':''+(eff===0?' → nicht abgezogen':'')),ML+2,y+4);if(eff>0)doc.text('-'+eff.toFixed(2)+' m²',ML+145,y+4);y+=6;});
       (rm.zusaetze||[]).forEach(e=>{checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(40,120,80);doc.text('  + '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n,ML+2,y+4);doc.text('+'+(e.b*e.h*e.n).toFixed(2)+' m²',ML+145,y+4);y+=6;});
       y+=2;
@@ -578,12 +592,14 @@ function generateProjectPDF(project,allFloorRooms){
     // Floor subtotal
     if(sc&&fRooms.length){
       checkPage(12);
-      doc.setFillColor(50,50,50);doc.rect(ML,y,CW,10,'F');
+      doc.setFillColor(50,50,50);doc.rect(ML,y,CW,16,'F');
       doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(180,180,180);
       doc.text('Summe '+fl.name,ML+2,y+6.5);
       doc.setTextColor(150,200,180);doc.text(flWG.toFixed(2)+' m²',ML+120,y+6.5);
       doc.setTextColor(110,181,200);doc.text(flWN.toFixed(2)+' m²',ML+170,y+6.5);
-      y+=12;
+      doc.text('Decke gesamt: '+flCeil.toFixed(2)+' m²',ML+2,y+12.5);
+      if(flCeilFlat>0||flSlope>0)doc.text('flach '+flCeilFlat.toFixed(2)+' m² · Schräge '+flSlope.toFixed(2)+' m²',ML+70,y+12.5);
+      y+=18;
       grandWG+=flWG;grandWN+=flWN;grandCeil+=flCeil;
     }
     y+=4;
@@ -932,6 +948,7 @@ function roomStats(rm){
       return s+Math.hypot(vb.x-va.x,vb.y-va.y)/scale;
     },0);
 
+    const deckeGesamt=(deckeFlach||0)+(schraegeFlaeche||0);
     dachStats={
       kniestockWand,
       schraegeFlaeche,
@@ -939,6 +956,7 @@ function roomStats(rm){
       normalWand,
       innenWand,
       deckeFlach,
+      deckeGesamt,
       traufLm,
       knieH,firstH,normH,
       neigGrad:neigRad*180/Math.PI,
@@ -1101,13 +1119,20 @@ function updSidebar(){
       +'<br>Sockelleiste: <b>'+(sockel!==null?sockel.toFixed(2):'?')+' m</b>'
       +'<br>Acryl Wand/Decke: <b>'+(acrylWD!==null?acrylWD.toFixed(2):'?')+' m</b>'
       +'<br>Acryl Wand/Wand: <b>'+(a!==null?(innenecken*rm.height).toFixed(2):'?')+' m</b>'
-      +(dachStats?('<br><span style="color:#c8a96e;font-size:9px">── Dachschräge ──</span>'
+      +(dachStats?('<br><span style="color:#c8a96e;font-size:9px">── Dachflächen / Decke ──</span>'
         +'<br>Kniestockwand: <b>'+dachStats.kniestockWand.toFixed(2)+' m²</b>'
-        +'<br>Schrägfläche: <b>'+dachStats.schraegeFlaeche.toFixed(2)+' m²</b>'):'')
+        +'<br>Schräge: <b>'+dachStats.schraegeFlaeche.toFixed(2)+' m²</b>'
+        +'<br>Decke flach: <b>'+dachStats.deckeFlach.toFixed(2)+' m²</b>'
+        +'<br>Decke gesamt: <b>'+dachStats.deckeGesamt.toFixed(2)+' m²</b>'):'')
     ):'';
+    const deckeAnzeige=dachStats?dachStats.deckeGesamt:a;
     const mainStats=a!==null
       ?('Grundfläche: <b>'+a.toFixed(2)+' m²</b>'
-        +'<br>Deckenfläche: <b>'+a.toFixed(2)+' m²</b>'
+        +(dachStats
+          ?'<br>Decke flach: <b>'+dachStats.deckeFlach.toFixed(2)+' m²</b>'
+           +'<br>Schräge: <b>'+dachStats.schraegeFlaeche.toFixed(2)+' m²</b>'
+           +'<br>Decke gesamt: <b>'+deckeAnzeige.toFixed(2)+' m²</b>'
+          :'<br>Deckenfläche: <b>'+a.toFixed(2)+' m²</b>')
         +'<br>Wand brutto: <b>'+wG.toFixed(2)+' m²</b>'
         +(abzSum>0?'<br>Abzüge: <b style="color:#c0392b">-'+abzSum.toFixed(2)+' m²</b>':'')
         +(zusSum>0?'<br>Zusätze: <b style="color:#a8e6cf">+'+zusSum.toFixed(2)+' m²</b>':'')
@@ -1126,10 +1151,11 @@ function updSidebar(){
     const tc=rooms.reduce((s,rm)=>s+polyArea(rm.points)/(scale*scale),0);
     tot.style.display='block';
     // Aggregate dach stats across all rooms
-    let tKnie=0,tSchraege=0,tGiebel=0,tNorm=0,tFlachD=0,hasDach=false;
-    rooms.forEach(rm=>{const ds=roomStats(rm).dachStats;if(ds){hasDach=true;tKnie+=ds.kniestockWand;tSchraege+=ds.schraegeFlaeche;tGiebel+=ds.giebelFlaeche;tNorm+=ds.normalWand+ds.innenWand;tFlachD+=ds.deckeFlach;}});
-    const dachTotals=hasDach?`<div class="tr"><span class="tl" style="color:#8a5f00">Kniestockwand</span><span class="tv">${tKnie.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Giebelwände</span><span class="tv">${tGiebel.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Schrägfläche</span><span class="tv">${tSchraege.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Flache Decke</span><span class="tv">${tFlachD.toFixed(2)} m²</span></div>`:'';
-    tot.innerHTML=`<div class="sh" style="padding:8px 14px">GESAMT</div><div style="padding:6px 14px 10px"><div class="tr"><span class="tl">Wand brutto</span><span class="tv">${twG.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Wand netto</span><span class="tv-net">${twN.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Decke gesamt</span><span class="tv">${tc.toFixed(2)} m²</span></div>${dachTotals}</div>`;
+    let tKnie=0,tSchraege=0,tGiebel=0,tNorm=0,tFlachD=0,tDeckeGes=0,hasDach=false;
+    rooms.forEach(rm=>{const ds=roomStats(rm).dachStats;if(ds){hasDach=true;tKnie+=ds.kniestockWand;tSchraege+=ds.schraegeFlaeche;tGiebel+=ds.giebelFlaeche;tNorm+=ds.normalWand+ds.innenWand;tFlachD+=ds.deckeFlach;tDeckeGes+=ds.deckeGesamt;}});
+    const deckeTotalAnzeige=hasDach?tDeckeGes:tc;
+    const dachTotals=hasDach?`<div class="tr"><span class="tl" style="color:#8a5f00">Kniestockwand</span><span class="tv">${tKnie.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Giebelwände</span><span class="tv">${tGiebel.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Schräge</span><span class="tv">${tSchraege.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke flach</span><span class="tv">${tFlachD.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke gesamt</span><span class="tv">${tDeckeGes.toFixed(2)} m²</span></div>`:'';
+    tot.innerHTML=`<div class="sh" style="padding:8px 14px">GESAMT</div><div style="padding:6px 14px 10px"><div class="tr"><span class="tl">Wand brutto</span><span class="tv">${twG.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Wand netto</span><span class="tv-net">${twN.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Decke gesamt</span><span class="tv">${deckeTotalAnzeige.toFixed(2)} m²</span></div>${dachTotals}</div>`;
   } else tot.style.display='none';
 }
 
@@ -1233,21 +1259,22 @@ function generatePDF(project,client,author){
   function tableHeader(){doc.setFillColor(35,35,35);doc.rect(ML,y,CW,7,'F');doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(200,169,110);const cols=[ML+2,ML+60,ML+95,ML+120,ML+145,ML+170];['Position','Grundfl.','Decke','Wand brutto','Abzüge/Zus.','Wand netto'].forEach((l,i)=>doc.text(l,cols[i],y+5));y+=8;}
   function checkPage(need=12){if(y+need>H-20){doc.addPage();y=MT;tableHeader();}}
   tableHeader();
-  let totalWG=0,totalWN=0,totalCeil=0;
+  let totalWG=0,totalWN=0,totalCeil=0,totalCeilFlat=0,totalSlope=0;
   rooms.forEach((rm,idx)=>{
-    const{a,wG,abzSum,zusSum,wN}=roomStats(rm);checkPage(14);
+    const{a,wG,abzSum,zusSum,wN,dachStats}=roomStats(rm);checkPage(14);
     const rowColor=idx%2===0?[248,246,242]:[255,255,255];doc.setFillColor(...rowColor);doc.rect(ML,y,CW,10,'F');
     doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);doc.text((idx+1)+'. '+rm.name,ML+2,y+6.5);
     doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);
-    if(a!==null){doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);doc.text(a.toFixed(2)+' m²',ML+95,y+6.5);doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);}else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',ML+60,y+6.5);}
+    if(a!==null){const deckeVal=dachStats?dachStats.deckeGesamt:a;doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);doc.text(deckeVal.toFixed(2)+' m²',ML+95,y+6.5);doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);}else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',ML+60,y+6.5);}
     doc.setDrawColor(220,218,212);doc.line(ML,y+10,ML+CW,y+10);y+=11;
     checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(130,120,100);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.text('  Raumhöhe: '+rm.height.toFixed(2)+' m',ML+2,y+4);y+=6;
+    if(dachStats){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+dachStats.deckeFlach.toFixed(2)+' m² · Schräge: '+dachStats.schraegeFlaeche.toFixed(2)+' m² · Decke gesamt: '+dachStats.deckeGesamt.toFixed(2)+' m²',ML+2,y+4);y+=6;}
     (rm.abzuege||[]).forEach(e=>{checkPage(6);const eff=calcAbzug(e);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(160,60,60);doc.text('  − '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n+(e.vob?' (VOB)':'')+(eff===0?' → nicht abgezogen':''),ML+2,y+4);if(eff>0)doc.text('-'+eff.toFixed(2)+' m²',ML+145,y+4);y+=6;});
     (rm.zusaetze||[]).forEach(e=>{checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(40,120,80);doc.text('  + '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n,ML+2,y+4);doc.text('+'+calcZusatz(e).toFixed(2)+' m²',ML+145,y+4);y+=6;});
-    y+=2;if(a!==null){totalWG+=wG;totalWN+=wN;totalCeil+=a;}
+    y+=2;if(a!==null){totalWG+=wG;totalWN+=wN;if(dachStats){totalCeil+=dachStats.deckeGesamt;totalCeilFlat+=dachStats.deckeFlach;totalSlope+=dachStats.schraegeFlaeche;}else{totalCeil+=a;}}
   });
   checkPage(22);y+=4;
-  doc.setFillColor(22,22,22);doc.rect(ML,y,CW,18,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(200,169,110);doc.text('GESAMT',ML+2,y+6);doc.setTextColor(150,200,180);doc.text('Wand brutto:',ML+50,y+6);doc.text(totalWG.toFixed(2)+' m²',ML+90,y+6);doc.text('Wand netto:',ML+50,y+12);doc.text(totalWN.toFixed(2)+' m²',ML+90,y+12);doc.setTextColor(110,181,200);doc.text('Deckenfläche:',ML+120,y+6);doc.text(totalCeil.toFixed(2)+' m²',ML+165,y+6);y+=22;
+  doc.setFillColor(22,22,22);doc.rect(ML,y,CW,24,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(200,169,110);doc.text('GESAMT',ML+2,y+6);doc.setTextColor(150,200,180);doc.text('Wand brutto:',ML+50,y+6);doc.text(totalWG.toFixed(2)+' m²',ML+90,y+6);doc.text('Wand netto:',ML+50,y+12);doc.text(totalWN.toFixed(2)+' m²',ML+90,y+12);doc.setTextColor(110,181,200);doc.text('Decke gesamt:',ML+120,y+6);doc.text(totalCeil.toFixed(2)+' m²',ML+165,y+6);if(totalCeilFlat>0||totalSlope>0){doc.text('Decke flach:',ML+120,y+12);doc.text(totalCeilFlat.toFixed(2)+' m²',ML+165,y+12);doc.text('Schräge:',ML+120,y+18);doc.text(totalSlope.toFixed(2)+' m²',ML+165,y+18);}y+=28;
   const pageCount=doc.getNumberOfPages();for(let p=1;p<=pageCount;p++){doc.setPage(p);doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);doc.text('Aufmaß-App · Seite '+p+' von '+pageCount,W/2,H-8,{align:'center'});doc.line(ML,H-12,W-MR,H-12);}
   doc.save((project.replace(/\s+/g,'-')||'Aufmass')+'-'+new Date().toISOString().slice(0,10)+'.pdf');
 }
