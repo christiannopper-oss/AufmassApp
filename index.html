@@ -301,7 +301,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_pts_grundriss jsonb;
 // Ersetze diese beiden Werte mit deinen eigenen:
 const SUPABASE_URL = 'https://dfobvtluyxikloyphfwf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmb2J2dGx1eXhpa2xveXBoZndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTkzNzcsImV4cCI6MjA5MjE3NTM3N30.X9KiYJRotf9dn8UWt1_mi4kkoEjPdlj4wBkweS1xVI8';
+const SUPABASE_KEY = 'DEIN_ANON_KEY';
 
 const sb = {
   async query(table, method='GET', body=null, filter=''){
@@ -754,6 +754,44 @@ function calcInnenecken(pts){
   return Math.max(count, n-count);
 }
 
+function getSchnittGeometry(pts,scaleValue,fallbackDc=null){
+  if(!pts||pts.length<5||!scaleValue)return null;
+  const n=pts.length;
+  const bottomLeft=pts[0];
+  const traufeL=pts[1];
+  const traufeR=n>=6?pts[4]:pts[n-2];
+  const kniestockH=Math.abs(traufeL.y-bottomLeft.y)/scaleValue;
+  let firstLineStart=null,firstLineEnd=null,firstY=null;
+  if(n===6){
+    firstLineStart=pts[2];
+    firstLineEnd=pts[3];
+    firstY=(pts[2].y+pts[3].y)/2;
+  }else{
+    let highestPt=pts[0];
+    for(const p of pts)if(p.y<highestPt.y)highestPt=p;
+    firstLineStart=highestPt;
+    firstLineEnd=highestPt;
+    firstY=highestPt.y;
+  }
+  const firstH=Math.abs(firstY-bottomLeft.y)/scaleValue;
+  const dxLeft=Math.abs(firstLineStart.x-traufeL.x)/scaleValue;
+  const dyLeft=Math.abs(firstLineStart.y-traufeL.y)/scaleValue;
+  const neigungLeft=dxLeft>0?Math.atan(dyLeft/dxLeft)*180/Math.PI:90;
+  const dxRight=Math.abs(traufeR.x-firstLineEnd.x)/scaleValue;
+  const dyRight=Math.abs(traufeR.y-firstLineEnd.y)/scaleValue;
+  const neigungRight=dxRight>0?Math.atan(dyRight/dxRight)*180/Math.PI:90;
+  let neigung=neigungLeft;
+  if(n===6&&Number.isFinite(neigungRight)){
+    neigung=(neigungLeft+neigungRight)/2;
+  }else if(fallbackDc&&fallbackDc.neigung){
+    neigung=fallbackDc.neigung;
+  }
+  const xs=pts.map(p=>p.x);
+  const dachbreite=(Math.max(...xs)-Math.min(...xs))/scaleValue;
+  const deckeH=n===6?firstH:0;
+  return {kniestockH,firstH,neigung,neigungLeft,neigungRight,dachbreite,deckeH,ptsCount:n,firstLineStart,firstLineEnd,firstY};
+}
+
 function roomStats(rm){
   const a=scale?polyArea(rm.points)/(scale*scale):null;
   const per=scale?polyPerim(rm.points)/scale:null;
@@ -780,34 +818,12 @@ function roomStats(rm){
 
     const sp=dc.schnittPts;
     if(sp&&sp.length>=5&&scaleS){
-      // Lowest Y in canvas = highest in image = floor level
-      const maxY=Math.max(...sp.map(p=>p.y));
-      const minY=Math.min(...sp.map(p=>p.y));
-      // Floor pts: within 8px of maxY
-      const floorPts=sp.filter(p=>Math.abs(p.y-maxY)<8);
-      const nonFloor=sp.filter(p=>Math.abs(p.y-maxY)>=8);
-      if(nonFloor.length>=2){
-        // Traufe: highest Y among non-floor pts
-        const traufeY=Math.max(...nonFloor.map(p=>p.y));
-        const traufePts=nonFloor.filter(p=>Math.abs(p.y-traufeY)<8);
-        if(traufePts.length>0){
-          knieH=Math.abs(traufeY-maxY)/scaleS;
-        }
-        firstH=Math.abs(minY-maxY)/scaleS;
-        // Neigung: from leftmost traufe pt to highest pt
-        const firstPt=sp.reduce((a,b)=>b.y<a.y?b:a);
-        const traufePt=traufePts.reduce((a,b)=>b.x<a.x?b:a); // leftmost traufe
-        const dx=Math.abs(firstPt.x-traufePt.x)/scaleS;
-        const dy=Math.abs(firstPt.y-traufePt.y)/scaleS;
-        if(dx>0.05)neigRad=Math.atan(dy/dx);
-        // NormH: if 6+ pts, look for flat ceiling pts between traufe and first
-        if(sp.length>=6){
-          const midPts=nonFloor.filter(p=>Math.abs(p.y-traufeY)>=8&&Math.abs(p.y-minY)>=8);
-          if(midPts.length>=2){
-            const ceilY=Math.max(...midPts.map(p=>p.y));
-            normH=Math.abs(ceilY-maxY)/scaleS;
-          }
-        }
+      const geo=getSchnittGeometry(sp,scaleS,dc);
+      if(geo){
+        knieH=geo.kniestockH;
+        firstH=geo.firstH;
+        if(Number.isFinite(geo.neigung))neigRad=geo.neigung*Math.PI/180;
+        normH=geo.deckeH>0?geo.deckeH:firstH;
       }
     }
 
@@ -1581,41 +1597,23 @@ function schnittUndo(){
 
 function confirmSchnitt(){
   if(schnittPts.length<5)return;
-  // pts: [0]=Kniestock links unten, [1]=Traufe links, [2]=First (oder Kehlpunkt), [3]=Traufe rechts (Satteldach) oder [2]=First (Pultdach), ...
-  // Pultdach: 5 pts: bodenL, traufeL, firstL, firstR, bodenR  (oder similar)
-  // Satteldach: 6 pts: bodenL, traufeL, kehlL, kehlR, traufeR, bodenR
-  const pts=schnittPts;
-  const n=pts.length;
-  // Determine kniestockH: vertical distance from bottom-left to traufe-left
-  // pts[0]=Kniestock unten links, pts[1]=Traufe links oben
   if(!scale){alert('Bitte zuerst kalibrieren!');return;}
-  const kniestockH=Math.abs(pts[1].y-pts[0].y)/scale;
-  // First: highest point
-  let firstPt=pts[0];
-  for(const p of pts)if(p.y<firstPt.y)firstPt=p;
-  const firstH=Math.abs(firstPt.y-pts[0].y)/scale;
-  // Neigung: angle from traufe to first
-  const traufeL=pts[1];
-  const dx=Math.abs(firstPt.x-traufeL.x)/scale;
-  const dy=Math.abs(firstPt.y-traufeL.y)/scale;
-  const neigung=dx>0?Math.atan(dy/dx)*180/Math.PI:90;
-  // Dachbreite: horizontal span
-  const xs=pts.map(p=>p.x);
-  const dachbreite=(Math.max(...xs)-Math.min(...xs))/scale;
-  // Deckenhöhe: if 6 pts, there's a flat section between pts[2] and pts[3]
-  let deckeH=0;
-  if(n===6){
-    // pts[2] and pts[3] are the kehl points (flat ceiling)
-    deckeH=Math.abs(pts[2].y-pts[0].y)/scale;
-  }
-  schnittResult={kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount:n};
+  const geo=getSchnittGeometry(schnittPts,scale,currentFloor&&currentFloor.dach_config?currentFloor.dach_config:null);
+  if(!geo)return;
+  const{kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount,neigungLeft,neigungRight}=geo;
+  schnittResult={kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount,neigungLeft,neigungRight};
   // Save to floor
   if(currentFloor){
-    const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:pts};
+    const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:[...schnittPts],ptsCount,neigungLeft,neigungRight};
     sb.patch('floors',{dach_config:updDach},'?id=eq.'+currentFloor.id);
     currentFloor.dach_config=updDach;
   }
-  alert('Schnitt ausgewertet!\nKniestock: '+kniestockH.toFixed(2)+'m\nFirst: '+firstH.toFixed(2)+'m\nNeigung: '+neigung.toFixed(1)+'°\nDachbreite: '+dachbreite.toFixed(2)+'m');
+  let msg='Schnitt ausgewertet!\nKniestock: '+kniestockH.toFixed(2)+'m\nFirst: '+firstH.toFixed(2)+'m\nNeigung: '+neigung.toFixed(1)+'°\nDachbreite: '+dachbreite.toFixed(2)+'m';
+  if(ptsCount===6){
+    msg+='\nFirstlinie: P3–P4';
+    msg+='\nLinks: '+neigungLeft.toFixed(1)+'° · Rechts: '+neigungRight.toFixed(1)+'°';
+  }
+  alert(msg);
   setView('grundriss');
 }
 
