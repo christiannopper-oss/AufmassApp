@@ -887,13 +887,8 @@ function roomStats(rm){
     }
 
     // ── 2. Abgeleitete Maße ──
-    // Für Wandflächen zählt die tatsächliche Raumhöhe dieses Raums.
-    const raumH = rm.height||normH;
-    const wandHoeheUeberKnie = Math.max(0, raumH-knieH);
-    const wandSchraegeTiefe = Math.tan(neigRad)>0.01?wandHoeheUeberKnie/Math.tan(neigRad):0;
-
-    // Für Decken-/Schrägflächen bleibt die Schnittgeometrie maßgeblich.
-    const schraegeHoehe=normH-knieH; // vertikale Höhe der Schräge bis Deckenhöhe aus Schnitt
+    // Tiefe der Schräge (horizontal) bis normale Höhe erreicht ist
+    const schraegeHoehe=normH-knieH; // vertikale Höhe der Schräge
     const schraegeTiefe=Math.tan(neigRad)>0.01?schraegeHoehe/Math.tan(neigRad):0;
     // Schrägfläche pro laufendem Meter Traufe
     const schraegeProMeter=Math.cos(neigRad)>0.01?schraegeTiefe/Math.cos(neigRad):schraegeTiefe;
@@ -945,29 +940,37 @@ function roomStats(rm){
       const t=edgeTypes[i];
 
       if(t==='trauf'){
-        kniestockWand+=edgeLen*Math.min(raumH,knieH);
+        kniestockWand+=edgeLen*knieH;
         schraegeFlaeche+=edgeLen*schraegeProMeter;
       } else if(t==='giebel'){
-        // Giebelflächen orientieren sich an der tatsächlichen Raumhöhe.
-        if(raumH<=knieH){
-          giebelFlaeche+=edgeLen*raumH;
-        } else if(traufCount>=2){
-          // Beide Seiten sind Traufseiten -> oben bleibt ein Trapez
-          const breitOben=Math.max(0,edgeLen-2*wandSchraegeTiefe);
+        // Giebelwand geometrie hängt von Anzahl Traufseiten ab
+        if(traufCount>=2){
+          // Beide Seiten haben Kniestock → Giebel = Rechteck + Trapez
+          // Rechteck: edgeLen × knieH
+          // Trapez: oben schmaler durch beide Schrägen
+          // Höhe Trapez: normH - knieH
+          // Breite oben = edgeLen - 2*schraegeTiefe (beide Seiten)
+          const breitOben=Math.max(0,edgeLen-2*schraegeTiefe);
           const rechteck=edgeLen*knieH;
-          const trapez=(edgeLen+breitOben)/2*(raumH-knieH);
+          const trapez=(edgeLen+breitOben)/2*(normH-knieH);
           giebelFlaeche+=rechteck+trapez;
         } else {
-          // Eine Traufseite -> ein oberes Dreieck wird abgezogen
-          const rechteckNorm=edgeLen*knieH;
-          const dreieck=0.5*Math.min(edgeLen,wandSchraegeTiefe)*(raumH-knieH);
-          const rechteckUeberKnie=Math.max(0,edgeLen-wandSchraegeTiefe)*(raumH-knieH);
+          // Eine Traufseite → Giebel = Rechteck(voll) + Rechteck(knie) + Dreieck
+          // Seite mit Traufe: knieH hoch
+          // Seite ohne Traufe: normH hoch  
+          // Dreieck dazwischen
+          const rechteckNorm=edgeLen*knieH; // Basis-Rechteck
+          const rechteckOben=edgeLen*(normH-knieH); // Oben auf normaler Seite? 
+          // Tatsächlich: Dreieck mit Breite=schraegeTiefe, Höhe=normH-knieH
+          const dreieck=0.5*schraegeTiefe*(normH-knieH);
+          // Rechteck normal: (edgeLen-schraegeTiefe) × (normH-knieH)
+          const rechteckUeberKnie=Math.max(0,edgeLen-schraegeTiefe)*(normH-knieH);
           giebelFlaeche+=rechteckNorm+rechteckUeberKnie+dreieck;
         }
       } else if(t==='normal'){
-        normalWand+=edgeLen*raumH;
+        normalWand+=edgeLen*normH;
       } else {
-        innenWand+=edgeLen*raumH;
+        innenWand+=edgeLen*normH;
       }
     }
 
@@ -990,16 +993,12 @@ function roomStats(rm){
 
     const deckeGesamt=(deckeFlach||0)+(schraegeFlaeche||0);
     const wandDachBrutto=kniestockWand+giebelFlaeche+normalWand+innenWand;
-    const wandVollBrutto = per!==null ? per*raumH : 0;
-    const wandAbzugDurchSchraege = Math.max(0, wandVollBrutto - wandDachBrutto);
     dachStats={
       kniestockWand,
       schraegeFlaeche,
       giebelFlaeche,
       normalWand,
       innenWand,
-      wandVollBrutto,
-      wandAbzugDurchSchraege,
       wandDachBrutto,
       deckeFlach,
       deckeGesamt,
@@ -1185,8 +1184,6 @@ function updSidebar(){
         +'<br>Kniestockwand: <b>'+dachStats.kniestockWand.toFixed(2)+' m²</b>'
         +'<br>Giebelwände: <b>'+dachStats.giebelFlaeche.toFixed(2)+' m²</b>'
         +'<br>Volle Wände: <b>'+(dachStats.normalWand+dachStats.innenWand).toFixed(2)+' m²</b>'
-        +'<br>Wand voll brutto: <b>'+dachStats.wandVollBrutto.toFixed(2)+' m²</b>'
-        +'<br>Abzug durch Schräge: <b>'+dachStats.wandAbzugDurchSchraege.toFixed(2)+' m²</b>'
         +'<br>Wand Dach brutto: <b>'+dachStats.wandDachBrutto.toFixed(2)+' m²</b>'
         +'<br>Schräge: <b>'+dachStats.schraegeFlaeche.toFixed(2)+' m²</b>'
         +'<br>Decke flach: <b>'+dachStats.deckeFlach.toFixed(2)+' m²</b>'
