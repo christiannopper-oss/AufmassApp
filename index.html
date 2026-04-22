@@ -1169,64 +1169,10 @@ function getCeilingStatsForRoom(rm){
   };
 }
 
-
-function getActiveRefScale(){
-  return viewMode==='schnitt' ? scaleSchnitt : scaleGrundriss;
-}
-function getActiveRefPts(){
-  return viewMode==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
-}
-function getRefMeasureFromState(v=viewMode){
-  const pts = v==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
-  const sc = v==='schnitt' ? scaleSchnitt : scaleGrundriss;
-  if(!pts || pts.length!==2 || !sc) return null;
-  const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
-  return Math.hypot(dx,dy)/sc;
-}
-function openRefEditor(){
-  if(refPts.length!==2){
-    setTool('ref');
-    refConfirmed=false;
-    updStatus();
-    draw();
-    return;
-  }
-  setTool('ref');
-  refConfirmed=true;
-  centerModal('mw-ref');
-  const current = getRefMeasureFromState(viewMode);
-  document.getElementById('r-len').value = current ? current.toFixed(2) : '';
-  document.getElementById('r-ok').disabled = false;
-  setTimeout(()=>document.getElementById('r-len').focus(),50);
-}
-
-
 function updSidebar(){
   const list=document.getElementById('rlist');
-
-  const activeRefPts = getActiveRefPts();
-  const activeRefScale = getActiveRefScale();
-  const refMeasure = getRefMeasureFromState(viewMode);
-  const refCard = (activeRefPts && activeRefPts.length===2)
-    ? `<div class="rc" onclick="openRefEditor()">
-        <div class="rn"><span>Referenzmaß</span><div style="display:flex;gap:4px"><button class="edit-btn" onclick="openRefEditor();event.stopPropagation()">✎</button></div></div>
-        <div class="rs">
-          Ansicht: <b>${viewMode==='schnitt'?'Schnitt':'Grundriss'}</b><br>
-          Maß: <b>${refMeasure!==null?refMeasure.toFixed(2)+' m':'nicht gesetzt'}</b><br>
-          Status: <b>${activeRefScale?'kalibriert':'nicht kalibriert'}</b><br>
-          Punkte: <b>2 gesetzt</b><br>
-          <span style="color:#999">Tippen zum Bearbeiten. Im Ref-Modus können die Punkte verschoben werden.</span>
-        </div>
-      </div>`
-    : '';
-
-  if(!rooms.length && !refCard){
-    list.innerHTML='<div style="padding:24px 10px;font-size:11px;color:#999;text-align:center;line-height:2.2">Noch keine Räume.<br>Zuerst kalibrieren,<br>dann zeichnen.</div>';
-    document.getElementById('totals').style.display='none';
-    return;
-  }
-
-  const roomHtml = rooms.map((rm,i)=>{
+  if(!rooms.length){list.innerHTML='<div style="padding:24px 10px;font-size:11px;color:#999;text-align:center;line-height:2.2">Noch keine Räume.<br>Zuerst kalibrieren,<br>dann zeichnen.</div>';document.getElementById('totals').style.display='none';return;}
+  list.innerHTML=rooms.map((rm,i)=>{
     const sel=selRoom===i;
     const abzHtml=(rm.abzuege||[]).map((e,ei)=>`<div class="entry-item"><span>↓ ${e.name} ${e.b.toFixed(2)}×${e.h.toFixed(2)} ×${e.n}${e.vob?' VOB':''}</span><span class="ev" style="color:#c0392b">-${calcAbzug(e).toFixed(2)} m²</span><span class="entry-del" onclick="delEntry(${i},'abzuege',${ei});event.stopPropagation()">✕</span></div>`).join('');
     const zusHtml=(rm.zusaetze||[]).map((e,ei)=>`<div class="entry-item"><span>↑ ${e.name} ${e.b.toFixed(2)}×${e.h.toFixed(2)} ×${e.n}</span><span class="ev" style="color:#a8e6cf">+${calcZusatz(e).toFixed(2)} m²</span><span class="entry-del" onclick="delEntry(${i},'zusaetze',${ei});event.stopPropagation()">✕</span></div>`).join('');
@@ -1266,14 +1212,13 @@ function updSidebar(){
     <div class="entry-list">${abzHtml}${zusHtml}</div>
     <div class="add-row"><button onclick="openEntry(${i},'abzug');event.stopPropagation()">− Abzug</button><button onclick="openEntry(${i},'zusatz');event.stopPropagation()">+ Zusatzfläche</button></div></div>`;
   }).join('');
-
-  list.innerHTML = refCard + roomHtml;
-
   const tot=document.getElementById('totals');
-  if(scale && rooms.length){
+  if(scale&&rooms.length){
     const twN=rooms.reduce((s,rm)=>{const{wN}=roomStats(rm);return s+(wN||0);},0);
     const twG=rooms.reduce((s,rm)=>{const{wG}=roomStats(rm);return s+(wG||0);},0);
+    const tc=rooms.reduce((s,rm)=>s+polyArea(rm.points)/(scale*scale),0);
     tot.style.display='block';
+    // Aggregate dach stats across all rooms
     let tKnie=0,tSchraege=0,tGiebel=0,tNorm=0,tFlachD=0,tDeckeGes=0,hasDach=false;
     rooms.forEach(rm=>{
       const stats=roomStats(rm);
@@ -1289,15 +1234,13 @@ function updSidebar(){
         tFlachD+=ds.deckeFlach;
       }
     });
+    const deckeTotalAnzeige=tDeckeGes;
     const dachTotals=hasDach?`<div class="tr"><span class="tl" style="color:#8a5f00">Kniestockwand</span><span class="tv">${tKnie.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Giebelwände</span><span class="tv">${tGiebel.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Schräge</span><span class="tv">${tSchraege.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke flach</span><span class="tv">${tFlachD.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke gesamt</span><span class="tv">${tDeckeGes.toFixed(2)} m²</span></div>`:'';
-    tot.innerHTML=`<div class="sh" style="padding:8px 14px">GESAMT</div><div style="padding:6px 14px 10px"><div class="tr"><span class="tl">Wand brutto</span><span class="tv">${twG.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Wand netto</span><span class="tv-net">${twN.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Decke gesamt</span><span class="tv">${tDeckeGes.toFixed(2)} m²</span></div>${dachTotals}</div>`;
-  } else {
-    tot.style.display='none';
-  }
+    tot.innerHTML=`<div class="sh" style="padding:8px 14px">GESAMT</div><div style="padding:6px 14px 10px"><div class="tr"><span class="tl">Wand brutto</span><span class="tv">${twG.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Wand netto</span><span class="tv-net">${twN.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Decke gesamt</span><span class="tv">${deckeTotalAnzeige.toFixed(2)} m²</span></div>${dachTotals}</div>`;
+  } else tot.style.display='none';
 }
 
-// ── ACTIONS
- ────────────────────────────────────────────────
+// ── ACTIONS ────────────────────────────────────────────────
 function activateDraw(){
   if(!scale){alert('Bitte zuerst das Referenzmaß setzen!');setTool('ref');return;}
   setTool('draw');
@@ -1317,15 +1260,10 @@ async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom]
 function undoPoint(){if(curPts.length>0){curPts.pop();updStatus();draw();}}
 function cancelDraw(){curPts=[];drag=null;hideMag();updStatus();draw();}
 function resetRef(){
-  if(viewMode==='schnitt'){
-    scaleSchnitt=null;
-    refPtsSchnitt=[];
-  } else {
-    scaleGrundriss=null;
-    refPtsGrundriss=[];
-  }
+  if(viewMode==='schnitt'){scaleSchnitt=null;}
+  else{scaleGrundriss=null;}
   scale=null;refPts=[];refConfirmed=false;
-  setTool('ref');updStatus();updSidebar();draw();scheduleSave();
+  setTool('ref');updStatus();updSidebar();scheduleSave();
 }
 async function delEntry(ri,key,ei){rooms[ri][key].splice(ei,1);await saveRoom(rooms[ri]);updSidebar();updStatus();}
 
@@ -1373,21 +1311,7 @@ async function closeRoom(ok){
 }
 function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
-  if(ok){
-    const rl=parseFloat(document.getElementById('r-len').value);
-    if(rl>0 && refPts.length===2){
-      const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;
-      scale=Math.hypot(dx,dy)/rl;
-      if(viewMode==='schnitt'){
-        scaleSchnitt=scale;
-        refPtsSchnitt=[...refPts];
-      } else {
-        scaleGrundriss=scale;
-        refPtsGrundriss=[...refPts];
-      }
-      scheduleSave();
-    }
-  }
+  if(ok){const rl=parseFloat(document.getElementById('r-len').value);if(rl>0){const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;scale=Math.hypot(dx,dy)/rl;scheduleSave();}}
   refConfirmed=true;setTool('draw');updStatus();updSidebar();draw();
 }
 function openEntry(ri,mode){entryTarget={roomIdx:ri,mode};document.getElementById('entry-modal-title').textContent=mode==='abzug'?'Abzug hinzufügen':'Zusatzfläche hinzufügen';document.getElementById('e-name').value=mode==='abzug'?'Tür':'Stichwand';document.getElementById('e-b').value=mode==='abzug'?'0.90':'1.00';document.getElementById('e-h').value=mode==='abzug'?'2.00':'1.20';document.getElementById('e-n').value='1';document.getElementById('e-vob').checked=false;document.getElementById('vob-row').style.display=mode==='abzug'?'flex':'none';centerModal('mw-entry');setTimeout(()=>document.getElementById('e-name').focus(),50);}
@@ -1531,7 +1455,7 @@ function handleTap(wx,wy){
 
 // ref point dragging (before confirmation)
 function hitRefPoint(wx,wy){
-  if(tool!=='ref')return null;
+  if(tool!=='ref'||refConfirmed)return null;
   const r=PT_HIT/zoom;
   for(let i=0;i<refPts.length;i++){if(Math.hypot(wx-refPts[i].x,wy-refPts[i].y)<r)return i;}
   return null;
@@ -1559,11 +1483,7 @@ cv.addEventListener('mousedown',e=>{
   handleTap(w.x,w.y);
 });
 cv.addEventListener('mouseup',async e=>{
-  if(dragRefIdx!==null){
-    if(viewMode==='schnitt') refPtsSchnitt=[...refPts];
-    else refPtsGrundriss=[...refPts];
-    dragRefIdx=null;updSidebar();draw();scheduleSave();return;
-  }
+  if(dragRefIdx!==null){dragRefIdx=null;draw();return;}
   if(drag){const rm=rooms[drag.roomIdx];await saveRoom(rm);drag=null;updSidebar();draw();}
   isPanning=false;
 });
@@ -1610,11 +1530,7 @@ cv.addEventListener('pointermove',e=>{
 cv.addEventListener('pointerup',async e=>{
   if(e.pointerType==='mouse')return;e.preventDefault();const hadMag=magActive;clearLp();delete activePtr[e.pointerId];
   if(Object.keys(activePtr).length<2)pinchDist=null;
-  if(dragRefIdx!==null){
-    if(viewMode==='schnitt') refPtsSchnitt=[...refPts];
-    else refPtsGrundriss=[...refPts];
-    dragRefIdx=null;updSidebar();draw();isPanning=false;scheduleSave();return;
-  }
+  if(dragRefIdx!==null){dragRefIdx=null;draw();isPanning=false;return;}
   if(drag){const rm=rooms[drag.roomIdx];await saveRoom(rm);drag=null;updSidebar();draw();isPanning=false;return;}
   isPanning=false;
   if(hadMag){const pos=magWorldPos;hideMag();if(pos)handleTap(pos.x,pos.y);return;}
