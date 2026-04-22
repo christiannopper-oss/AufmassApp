@@ -171,28 +171,26 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
     <span class="floor-label" id="current-floor-label"></span>
     <span class="sep">|</span>
     <button class="tbtn active" id="btn-select" onclick="setTool('select')">↖</button>
-    <button class="tbtn" id="btn-ref" onclick="setTool('ref')">⊢ Ref</button>
-    <span id="btn-draw-active" style="display:none;padding:4px 10px;background:#b8914a22;border:1px solid #b8914a;border-radius:5px;font-size:11px;color:#8a5f00;font-weight:600">✦ Zeichnen aktiv</span>
+    <button class="tbtn" id="btn-ref" onclick="setTool('ref')">Ref setzen / bearbeiten</button>
+    <span id="btn-draw-active" style="display:none;padding:4px 10px;background:#b8914a22;border:1px solid #b8914a;border-radius:5px;font-size:11px;color:#8a5f00;font-weight:600">✦ Raum zeichnen aktiv</span>
     <button class="tbtn" id="btn-add-room" onclick="activateDraw()" style="background:#b8914a22;border-color:#b8914a;color:#8a5f00;font-weight:600">+ Raum</button>
     <div class="spacer"></div>
     <button class="tbtn confirm" id="btn-ref-confirm" style="display:none" onclick="confirmRef()">✓ Bestätigen</button>
     <button class="tbtn" id="btn-schnitt-draw" style="display:none" onclick="startSchnittDraw()">✦ Schnitt zeichnen</button>
     <button class="tbtn confirm" id="btn-schnitt-confirm" style="display:none" onclick="confirmSchnitt()">✓ Auswerten</button>
-    <button class="tbtn" id="btn-schnitt-undo" style="display:none" onclick="schnittUndo()">← Zurück</button>
+    <button class="tbtn" id="btn-schnitt-undo" style="display:none" onclick="schnittUndo()">Letzten Schnittpunkt löschen</button>
     <button class="tbtn warn" id="btn-trauf" style="display:none" onclick="setTool('trauf')">🏠 Traufseite</button>
-    <button class="tbtn" id="btn-undo" style="display:none" onclick="undoPoint()">←</button>
-    <button class="tbtn" id="btn-close" style="display:none" onclick="openRoomModal()">⬡</button>
-    <button class="tbtn" id="btn-esc" style="display:none" onclick="cancelDraw()">✕</button>
-    <button class="tbtn warn" onclick="resetRef()">⟳</button>
+    <button class="tbtn" id="btn-undo" style="display:none" onclick="undoPoint()">Letzten Punkt löschen</button>
+    <button class="tbtn" id="btn-close" style="display:none" onclick="openRoomModal()">Raum speichern</button>
+    <button class="tbtn" id="btn-esc" style="display:none" onclick="cancelDraw()">Zeichnen abbrechen</button>
+    <button class="tbtn warn" id="btn-ref-reset" onclick="resetRef()">Ref löschen</button>
     <button class="tbtn danger" id="btn-del" style="display:none" onclick="deleteSelected()">🗑</button>
     <button class="tbtn export" onclick="openExportModal()" id="btn-export" style="display:none">↓ PDF</button>
     <button class="tbtn" id="btn-gdr" onclick="setView('grundriss')" style="display:none">📐 Grundriss</button>
     <button class="tbtn" id="btn-sch" onclick="setView('schnitt')" style="display:none">✂ Schnitt</button>
     <button class="tbtn" onclick="rotatePlan()">↻ Drehen</button>
-    <button class="tbtn" onclick="document.getElementById('fi').click()">+ Plan</button>
-    <button class="tbtn" onclick="document.getElementById('fi-cam').click()">📷</button>
+    <button class="tbtn" onclick="document.getElementById('fi').click()">+ PDF / Foto</button>
     <input id="fi" type="file" accept="application/pdf,image/*" style="display:none" onchange="loadFile(this)">
-    <input id="fi-cam" type="file" accept="image/*" capture="environment" style="display:none" onchange="loadFile(this)">
   </div>
   <div id="statusbar">
     <span id="st-z">Zoom 100%</span>
@@ -271,7 +269,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
       <div class="sh">AUFMASS</div>
       <div id="rlist"></div>
       <div id="totals"></div>
-      <div id="hint">Ref: 2 Punkte → ✓ Bestätigen → Maß eingeben<br>Punkt anfassen = verschieben<br>Kante anklicken = Punkt einfügen<br>Lang drücken = Lupe</div>
+      <div id="hint">Ref setzen: 2 Punkte → ✓ Bestätigen → Maß eingeben<br>"Letzten Punkt löschen" entfernt nur den letzten Zeichenpunkt<br>"Ref löschen" entfernt das komplette Referenzmaß<br>Kante anklicken = Punkt einfügen<br>Lang drücken = Lupe</div>
     </div>
   </div>
 </div>
@@ -472,42 +470,23 @@ async function openFloor(id){
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
   rooms=rawRooms.map(rm=>({...rm,traufKanten:rm.trauf_kanten||[]}));
 
-  // restore saved grundriss image
+  // reset visible plans; restore after the app screen is visible
   img=null;imgX=0;imgY=0;imgW=0;imgH=0;
-  if(currentFloor.plan_data){
-    const i=new Image();
-    i.onload=()=>{
-      img=i;
-      document.getElementById('drop-hint').style.display='none';
-      const r=wrap.getBoundingClientRect();
-      const ratio=Math.min((r.width-40)/i.width,(r.height-40)/i.height);
-      imgW=i.width*ratio;imgH=i.height*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
-      zoom=1;panX=0;panY=0;draw();
-    };
-    i.src=currentFloor.plan_data;
-  }
-
-  // restore saved schnitt image
-  if(currentFloor.schnitt_plan_data){
-    const si=new Image();
-    si.onload=()=>{
-      schnittImg=si;
-      const r=wrap.getBoundingClientRect();
-      const ratio=Math.min((r.width-40)/si.width,(r.height-40)/si.height);
-      schnittW=si.width*ratio;schnittH=si.height*ratio;schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
-      if(viewMode==='schnitt')draw();
-    };
-    si.src=currentFloor.schnitt_plan_data;
-  }
+  schnittImg=null;schnittX=0;schnittY=0;schnittW=0;schnittH=0;
 
   // pre-fill export fields
   document.getElementById('exp-project').value=currentProject.name;
   document.getElementById('exp-client').value=currentProject.client||'';
   document.getElementById('exp-author').value=currentProject.author||'';
+
   showScreen('app');
-  updPageNav();
-  updStatus();
-  updSidebar();
+  setTimeout(async ()=>{
+    await restoreSavedPlans();
+    updPageNav();
+    updStatus();
+    updSidebar();
+    draw();
+  },80);
 }
 
 async function deleteFloor(id){
@@ -780,7 +759,15 @@ function renderMag(wx,wy){
 function mkDrag(hId,wId){const h=document.getElementById(hId),w=document.getElementById(wId);let dn=false,mx=0,my=0;h.addEventListener('mousedown',e=>{dn=true;mx=e.clientX;my=e.clientY;e.preventDefault();});document.addEventListener('mousemove',e=>{if(!dn)return;const wr=wrap.getBoundingClientRect();let nx=parseFloat(w.style.left||0)+(e.clientX-mx),ny=parseFloat(w.style.top||0)+(e.clientY-my);nx=Math.max(0,Math.min(wr.width-w.offsetWidth,nx));ny=Math.max(0,Math.min(wr.height-w.offsetHeight,ny));w.style.left=nx+'px';w.style.top=ny+'px';mx=e.clientX;my=e.clientY;});document.addEventListener('mouseup',()=>dn=false);}
 ['room','ref','entry','export'].forEach(id=>mkDrag('md-'+id,'mw-'+id));
 
-function resize(){const r=wrap.getBoundingClientRect();cv.width=r.width;cv.height=r.height;draw();}
+function resize(){
+  const r=wrap.getBoundingClientRect();
+  cv.width=r.width;cv.height=r.height;
+  if(currentFloor && (currentFloor.plan_data || currentFloor.schnitt_plan_data) && r.width && r.height){
+    restoreSavedPlans().then(()=>draw());
+  } else {
+    draw();
+  }
+}
 window.addEventListener('resize',resize);
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
@@ -1316,6 +1303,7 @@ async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom]
 function undoPoint(){if(curPts.length>0){curPts.pop();updStatus();draw();}}
 function cancelDraw(){curPts=[];drag=null;hideMag();updStatus();draw();}
 function resetRef(){
+  if(!confirm('Referenzmaß wirklich löschen?'))return;
   if(viewMode==='schnitt'){
     scaleSchnitt=null;
     refPtsSchnitt=[];
@@ -1639,6 +1627,30 @@ async function loadPageImage(pageNum){
   const dataUrl=tc.toDataURL('image/jpeg',0.85);
   pageImages[pageNum]=dataUrl;
   return dataUrl;
+}
+
+
+async function restoreSavedPlans(){
+  if(!currentFloor)return;
+  const r=wrap.getBoundingClientRect();
+  if(!r.width || !r.height)return;
+
+  if(currentFloor.plan_data){
+    const i=new Image();
+    await new Promise(res=>{i.onload=res;i.src=currentFloor.plan_data;});
+    const ratio=Math.min((r.width-40)/i.width,(r.height-40)/i.height);
+    img=i;imgW=i.width*ratio;imgH=i.height*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
+    zoom=1;panX=0;panY=0;
+    const dh=document.getElementById('drop-hint');
+    if(dh)dh.style.display='none';
+  }
+
+  if(currentFloor.schnitt_plan_data){
+    const si=new Image();
+    await new Promise(res=>{si.onload=res;si.src=currentFloor.schnitt_plan_data;});
+    const ratio=Math.min((r.width-40)/si.width,(r.height-40)/si.height);
+    schnittImg=si;schnittW=si.width*ratio;schnittH=si.height*ratio;schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
+  }
 }
 
 async function showPage(pageNum,isSchnitt=false){
