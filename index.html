@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Aufmaß</title>
+<title>Aufmaß v21 Bugfix Decke</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:ui-monospace,monospace;background:#f5f5f0;color:#1a1a1a;height:100vh;overflow:hidden;display:flex;flex-direction:column}
@@ -1107,6 +1107,20 @@ function updStatus(){
   document.getElementById('btn-export').style.display=(scale&&rooms.length>0)?'':'none';
 }
 
+
+function getCeilingStatsForRoom(rm){
+  const stats = roomStats(rm);
+  const a = stats.a;
+  const ds = stats.dachStats;
+  return {
+    grundflaeche: a,
+    deckeFlach: ds ? ds.deckeFlach : a,
+    schraege: ds ? ds.schraegeFlaeche : 0,
+    deckeGesamt: ds ? ds.deckeGesamt : a,
+    hasDach: !!ds
+  };
+}
+
 function updSidebar(){
   const list=document.getElementById('rlist');
   if(!rooms.length){list.innerHTML='<div style="padding:24px 10px;font-size:11px;color:#999;text-align:center;line-height:2.2">Noch keine Räume.<br>Zuerst kalibrieren,<br>dann zeichnen.</div>';document.getElementById('totals').style.display='none';return;}
@@ -1125,12 +1139,13 @@ function updSidebar(){
         +'<br>Decke flach: <b>'+dachStats.deckeFlach.toFixed(2)+' m²</b>'
         +'<br>Decke gesamt: <b>'+dachStats.deckeGesamt.toFixed(2)+' m²</b>'):'')
     ):'';
-    const deckeAnzeige=dachStats?dachStats.deckeGesamt:a;
+    const ceilingStats=getCeilingStatsForRoom(rm);
+    const deckeAnzeige=ceilingStats.deckeGesamt;
     const mainStats=a!==null
       ?('Grundfläche: <b>'+a.toFixed(2)+' m²</b>'
-        +(dachStats
-          ?'<br>Decke flach: <b>'+dachStats.deckeFlach.toFixed(2)+' m²</b>'
-           +'<br>Schräge: <b>'+dachStats.schraegeFlaeche.toFixed(2)+' m²</b>'
+        +(ceilingStats.hasDach
+          ?'<br>Decke flach: <b>'+ceilingStats.deckeFlach.toFixed(2)+' m²</b>'
+           +'<br>Schräge: <b>'+ceilingStats.schraege.toFixed(2)+' m²</b>'
            +'<br>Decke gesamt: <b>'+deckeAnzeige.toFixed(2)+' m²</b>'
           :'<br>Deckenfläche: <b>'+a.toFixed(2)+' m²</b>')
         +'<br>Wand brutto: <b>'+wG.toFixed(2)+' m²</b>'
@@ -1152,8 +1167,21 @@ function updSidebar(){
     tot.style.display='block';
     // Aggregate dach stats across all rooms
     let tKnie=0,tSchraege=0,tGiebel=0,tNorm=0,tFlachD=0,tDeckeGes=0,hasDach=false;
-    rooms.forEach(rm=>{const ds=roomStats(rm).dachStats;if(ds){hasDach=true;tKnie+=ds.kniestockWand;tSchraege+=ds.schraegeFlaeche;tGiebel+=ds.giebelFlaeche;tNorm+=ds.normalWand+ds.innenWand;tFlachD+=ds.deckeFlach;tDeckeGes+=ds.deckeGesamt;}});
-    const deckeTotalAnzeige=hasDach?tDeckeGes:tc;
+    rooms.forEach(rm=>{
+      const stats=roomStats(rm);
+      const ds=stats.dachStats;
+      const cs=getCeilingStatsForRoom(rm);
+      tDeckeGes += cs.deckeGesamt || 0;
+      if(ds){
+        hasDach=true;
+        tKnie+=ds.kniestockWand;
+        tSchraege+=ds.schraegeFlaeche;
+        tGiebel+=ds.giebelFlaeche;
+        tNorm+=ds.normalWand+ds.innenWand;
+        tFlachD+=ds.deckeFlach;
+      }
+    });
+    const deckeTotalAnzeige=tDeckeGes;
     const dachTotals=hasDach?`<div class="tr"><span class="tl" style="color:#8a5f00">Kniestockwand</span><span class="tv">${tKnie.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Giebelwände</span><span class="tv">${tGiebel.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Schräge</span><span class="tv">${tSchraege.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke flach</span><span class="tv">${tFlachD.toFixed(2)} m²</span></div><div class="tr"><span class="tl" style="color:#8a5f00">Decke gesamt</span><span class="tv">${tDeckeGes.toFixed(2)} m²</span></div>`:'';
     tot.innerHTML=`<div class="sh" style="padding:8px 14px">GESAMT</div><div style="padding:6px 14px 10px"><div class="tr"><span class="tl">Wand brutto</span><span class="tv">${twG.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Wand netto</span><span class="tv-net">${twN.toFixed(2)} m²</span></div><div class="tr"><span class="tl">Decke gesamt</span><span class="tv">${deckeTotalAnzeige.toFixed(2)} m²</span></div>${dachTotals}</div>`;
   } else tot.style.display='none';
@@ -1265,7 +1293,7 @@ function generatePDF(project,client,author){
     const rowColor=idx%2===0?[248,246,242]:[255,255,255];doc.setFillColor(...rowColor);doc.rect(ML,y,CW,10,'F');
     doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);doc.text((idx+1)+'. '+rm.name,ML+2,y+6.5);
     doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);
-    if(a!==null){const deckeVal=dachStats?dachStats.deckeGesamt:a;doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);doc.text(deckeVal.toFixed(2)+' m²',ML+95,y+6.5);doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);}else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',ML+60,y+6.5);}
+    if(a!==null){const deckeVal=getCeilingStatsForRoom(rm).deckeGesamt;doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);doc.text(deckeVal.toFixed(2)+' m²',ML+95,y+6.5);doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);}else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',ML+60,y+6.5);}
     doc.setDrawColor(220,218,212);doc.line(ML,y+10,ML+CW,y+10);y+=11;
     checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(130,120,100);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.text('  Raumhöhe: '+rm.height.toFixed(2)+' m',ML+2,y+4);y+=6;
     if(dachStats){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+dachStats.deckeFlach.toFixed(2)+' m² · Schräge: '+dachStats.schraegeFlaeche.toFixed(2)+' m² · Decke gesamt: '+dachStats.deckeGesamt.toFixed(2)+' m²',ML+2,y+4);y+=6;}
