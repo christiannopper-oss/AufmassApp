@@ -139,7 +139,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v39</span>
+    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v40</span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -980,7 +980,7 @@ function resize(){
   }
 }
 window.addEventListener('resize',resize);
-window.__AUFMASS_BUILD='v39';
+window.__AUFMASS_BUILD='v40';
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
 
@@ -1408,7 +1408,12 @@ function getActiveRefScale(){
 function getActiveRefPts(){
   return viewMode==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
 }
+function getStoredRefLengthForView(v=viewMode){
+  return v==='schnitt' ? refLengthSchnittM : refLengthGrundrissM;
+}
 function getRefMeasureFromState(v=viewMode){
+  const stored = getStoredRefLengthForView(v);
+  if(stored) return stored;
   const pts = v==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
   const sc = v==='schnitt' ? scaleSchnitt : scaleGrundriss;
   if(!pts || pts.length!==2 || !sc) return null;
@@ -1426,7 +1431,7 @@ function openRefEditor(){
   setTool('ref');
   refConfirmed=true;
   centerModal('mw-ref');
-  const current = getRefMeasureFromState(viewMode);
+  const current = getStoredRefLengthForView(viewMode) ?? getRefMeasureFromState(viewMode);
   document.getElementById('r-len').value = current ? current.toFixed(2) : '';
   document.getElementById('r-ok').disabled = false;
   setTimeout(()=>document.getElementById('r-len').focus(),50);
@@ -1438,7 +1443,7 @@ function updSidebar(){
 
   const activeRefPts = getActiveRefPts();
   const activeRefScale = getActiveRefScale();
-  const refMeasure = getRefMeasureFromState(viewMode);
+  const refMeasure = getStoredRefLengthForView(viewMode) ?? getRefMeasureFromState(viewMode);
   const refCard = (activeRefPts && activeRefPts.length===2)
     ? `<div class="rc" onclick="openRefEditor()">
         <div class="rn"><span>Referenzmaß</span><div style="display:flex;gap:4px"><button class="edit-btn" onclick="openRefEditor();event.stopPropagation()">✎</button><button class="edit-btn" style="border-color:#c0392b33;color:#c0392b" onclick="resetRef();event.stopPropagation()">✕</button></div></div>
@@ -1566,7 +1571,7 @@ async function delEntry(ri,key,ei){rooms[ri][key].splice(ei,1);await saveRoom(ro
 function confirmRef(){
   if(refPts.length!==2)return;
   centerModal('mw-ref');
-  const current = getRefMeasureFromState(viewMode);
+  const current = getStoredRefLengthForView(viewMode) ?? getRefMeasureFromState(viewMode);
   document.getElementById('r-len').value = current ? current.toFixed(2) : '';
   document.getElementById('r-ok').disabled = false;
   setTimeout(()=>document.getElementById('r-len').focus(),50);
