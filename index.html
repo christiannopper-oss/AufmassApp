@@ -301,6 +301,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS schnitt_plan_data text;
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS grundriss_page int DEFAULT 1;
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS schnitt_page int DEFAULT 1;
+// ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_length_m float8;
 // Ersetze diese beiden Werte mit deinen eigenen:
 const SUPABASE_URL = 'https://dfobvtluyxikloyphfwf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmb2J2dGx1eXhpa2xveXBoZndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTkzNzcsImV4cCI6MjA5MjE3NTM3N30.X9KiYJRotf9dn8UWt1_mi4kkoEjPdlj4wBkweS1xVI8';
@@ -335,9 +336,9 @@ let tool='select';
 let curPts=[],refPts=[];
 let snapInfo=null,mouseW=null;
 let scale=null; // current active scale (alias)
-let scaleGrundriss=null;
-let refLengthM=null; // scale for grundriss view
+let scaleGrundriss=null; // scale for grundriss view
 let scaleSchnitt=null;   // scale for schnitt view
+let refLengthM=null;     // reales Referenzmaß in m (geräteunabhängig)
 let selRoom=null,pendingPts=null;
 let isPanning=false,lastPX=0,lastPY=0;
 let drag=null,hoverPt=null,hoverEdge=null;
@@ -393,12 +394,18 @@ function denormalizePtsForView(pts,v){
   });
 }
 
-function recalcScaleFromRef(){
-  if(!refLengthM) return;
-  if(refPts.length===2){
-    const dx = refPts[1].x - refPts[0].x;
-    const dy = refPts[1].y - refPts[0].y;
-    scale = Math.hypot(dx,dy) / refLengthM;
+function recalcScaleFromRef(view){
+  const pts = view==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
+  if(!refLengthM || !pts || pts.length!==2) return;
+  const dx = pts[1].x - pts[0].x;
+  const dy = pts[1].y - pts[0].y;
+  const localScale = Math.hypot(dx,dy) / refLengthM;
+  if(view==='schnitt'){
+    scaleSchnitt = localScale;
+    if(viewMode==='schnitt') scale = localScale;
+  } else {
+    scaleGrundriss = localScale;
+    if(viewMode==='grundriss') scale = localScale;
   }
 }
 
@@ -406,6 +413,8 @@ function applyPersistedGeometry(){
   if(persistedRefPtsGrundrissRaw) refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
   if(persistedRefPtsSchnittRaw) refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
   if(persistedSchnittPtsRaw) schnittPts = denormalizePtsForView(persistedSchnittPtsRaw,'schnitt');
+  recalcScaleFromRef('grundriss');
+  recalcScaleFromRef('schnitt');
   refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
 }
 
@@ -507,6 +516,7 @@ async function openFloor(id){
   refPtsGrundriss=[];
   refPtsSchnitt=[];
   schnittPts=[];
+  refLengthM=(currentFloor.ref_length_m ?? localState.refLengthM ?? null);
   scaleGrundriss=(currentFloor.scale_px_per_m ?? localState.scaleGrundriss ?? null);
   scaleSchnitt=(currentFloor.scale_schnitt ?? localState.scaleSchnitt ?? null);
   scale=scaleGrundriss;
@@ -524,7 +534,7 @@ async function openFloor(id){
 
   // load rooms
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
-  rooms=rawRooms.map(rm=>({...rm,points:(rm.points||[]).map(p=>planToScreen(p,'grundriss')),traufKanten:rm.trauf_kanten||[]}));
+  rooms=rawRooms.map(rm=>({...rm,points:(rm.points||[]),traufKanten:rm.trauf_kanten||[]}));
 
   // reset visible plans; restore after the app screen is visible
   img=null;imgX=0;imgY=0;imgW=0;imgH=0;
@@ -539,8 +549,11 @@ async function openFloor(id){
   setTimeout(async ()=>{
     await restoreSavedPlans();
     applyPersistedGeometry();
-    recalcScaleFromRef();
-    refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
+    rooms = rooms.map(rm=>({
+      ...rm,
+      points: denormalizePtsForView((rm.points||[]),'grundriss')
+    }));
+    refConfirmed=((viewMode==='schnitt'?scaleSchnitt:scaleGrundriss)!==null) && (viewMode==='schnitt'?refPtsSchnitt.length===2:refPtsGrundriss.length===2);
     refPts=[...refPtsGrundriss];
     updPageNav();
     updStatus();
@@ -761,8 +774,8 @@ async function saveFloorState(){
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
-      ref_length_m: refLengthM,
       scale_schnitt:scaleSchnitt,
+      ref_length_m:refLengthM,
       ref_points:normRefGrundriss,
       ref_pts_grundriss:normRefGrundriss,
       ref_pts_schnitt:normRefSchnitt,
@@ -777,15 +790,17 @@ async function saveFloorState(){
     currentFloor.schnitt_pts=normSchnittPts;
     currentFloor.scale_px_per_m=scaleGrundriss;
     currentFloor.scale_schnitt=scaleSchnitt;
+    currentFloor.ref_length_m=refLengthM;
     showSaveIndicator();
   }catch(e){console.error('Save error',e);}
 }
 async function saveRoom(room){
+  const normalizedPoints = normalizePtsForView(room.points||[],'grundriss');
   if(!room.id){
-    const res=await sb.post('rooms',{floor_id:currentFloor.id,name:room.name,height:room.height,points:room.points,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]});
+    const res=await sb.post('rooms',{floor_id:currentFloor.id,name:room.name,height:room.height,points:normalizedPoints,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]});
     if(res&&res[0])room.id=res[0].id;
   } else {
-    await sb.patch('rooms',{name:room.name,height:room.height,points:room.points,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]},'?id=eq.'+room.id);
+    await sb.patch('rooms',{name:room.name,height:room.height,points:normalizedPoints,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]},'?id=eq.'+room.id);
   }
   showSaveIndicator();
 }
@@ -917,7 +932,6 @@ function resize(){
   if(currentFloor && (currentFloor.plan_data || currentFloor.schnitt_plan_data) && r.width && r.height){
     restoreSavedPlans().then(()=>{
       applyPersistedGeometry();
-    recalcScaleFromRef();
       refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
       draw();
     });
@@ -1551,8 +1565,8 @@ async function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
   if(ok){
     const rl=parseFloat(document.getElementById('r-len').value);
-      refLengthM = rl;
     if(rl>0 && refPts.length===2){
+      refLengthM = rl;
       const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;
       scale=Math.hypot(dx,dy)/rl;
       if(viewMode==='schnitt'){
