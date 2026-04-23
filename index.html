@@ -335,7 +335,8 @@ let tool='select';
 let curPts=[],refPts=[];
 let snapInfo=null,mouseW=null;
 let scale=null; // current active scale (alias)
-let scaleGrundriss=null; // scale for grundriss view
+let scaleGrundriss=null;
+let refLengthM=null; // scale for grundriss view
 let scaleSchnitt=null;   // scale for schnitt view
 let selRoom=null,pendingPts=null;
 let isPanning=false,lastPX=0,lastPY=0;
@@ -391,6 +392,16 @@ function denormalizePtsForView(pts,v){
     return p;
   });
 }
+
+function recalcScaleFromRef(){
+  if(!refLengthM) return;
+  if(refPts.length===2){
+    const dx = refPts[1].x - refPts[0].x;
+    const dy = refPts[1].y - refPts[0].y;
+    scale = Math.hypot(dx,dy) / refLengthM;
+  }
+}
+
 function applyPersistedGeometry(){
   if(persistedRefPtsGrundrissRaw) refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
   if(persistedRefPtsSchnittRaw) refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
@@ -513,7 +524,7 @@ async function openFloor(id){
 
   // load rooms
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
-  rooms=rawRooms.map(rm=>({...rm,traufKanten:rm.trauf_kanten||[]}));
+  rooms=rawRooms.map(rm=>({...rm,points:(rm.points||[]).map(p=>planToScreen(p,'grundriss')),traufKanten:rm.trauf_kanten||[]}));
 
   // reset visible plans; restore after the app screen is visible
   img=null;imgX=0;imgY=0;imgW=0;imgH=0;
@@ -528,7 +539,7 @@ async function openFloor(id){
   setTimeout(async ()=>{
     await restoreSavedPlans();
     applyPersistedGeometry();
-    applyPersistedGeometry();
+    recalcScaleFromRef();
     refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
     refPts=[...refPtsGrundriss];
     updPageNav();
@@ -750,6 +761,7 @@ async function saveFloorState(){
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
+      ref_length_m: refLengthM,
       scale_schnitt:scaleSchnitt,
       ref_points:normRefGrundriss,
       ref_pts_grundriss:normRefGrundriss,
@@ -905,6 +917,7 @@ function resize(){
   if(currentFloor && (currentFloor.plan_data || currentFloor.schnitt_plan_data) && r.width && r.height){
     restoreSavedPlans().then(()=>{
       applyPersistedGeometry();
+    recalcScaleFromRef();
       refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
       draw();
     });
@@ -1538,6 +1551,7 @@ async function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
   if(ok){
     const rl=parseFloat(document.getElementById('r-len').value);
+      refLengthM = rl;
     if(rl>0 && refPts.length===2){
       const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;
       scale=Math.hypot(dx,dy)/rl;
