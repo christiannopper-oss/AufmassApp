@@ -139,7 +139,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v37</span>
+    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v39</span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -301,7 +301,8 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS schnitt_plan_data text;
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS grundriss_page int DEFAULT 1;
 // ALTER TABLE floors ADD COLUMN IF NOT EXISTS schnitt_page int DEFAULT 1;
-// ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_length_m float8;
+// ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_length_grundriss_m float8;
+// ALTER TABLE floors ADD COLUMN IF NOT EXISTS ref_length_schnitt_m float8;
 // Ersetze diese beiden Werte mit deinen eigenen:
 const SUPABASE_URL = 'https://dfobvtluyxikloyphfwf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmb2J2dGx1eXhpa2xveXBoZndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTkzNzcsImV4cCI6MjA5MjE3NTM3N30.X9KiYJRotf9dn8UWt1_mi4kkoEjPdlj4wBkweS1xVI8';
@@ -800,7 +801,8 @@ async function saveFloorState(){
     currentFloor.schnitt_pts=normSchnittPts;
     currentFloor.scale_px_per_m=scaleGrundriss;
     currentFloor.scale_schnitt=scaleSchnitt;
-    currentFloor.ref_length_m=refLengthM;
+    currentFloor.ref_length_grundriss_m=refLengthGrundrissM;
+    currentFloor.ref_length_schnitt_m=refLengthSchnittM;
     showSaveIndicator();
     syncDebugState();
   }catch(e){console.error('Save error',e);}
@@ -885,6 +887,8 @@ function setFloorStateCache(){
     const payload={
       scaleGrundriss,
       scaleSchnitt,
+      refLengthGrundrissM,
+      refLengthSchnittM,
       refPtsGrundriss: normalizePtsForView(refPtsGrundriss,'grundriss'),
       refPtsSchnitt: normalizePtsForView(refPtsSchnitt,'schnitt'),
       imgRotationGrundriss,
@@ -911,18 +915,23 @@ function getFloorStateCache(){
 
 
 function syncDebugState(){
-  window.refLengthM = refLengthM;
+  window.refLengthGrundrissM = refLengthGrundrissM;
+  window.refLengthSchnittM = refLengthSchnittM;
   window.debugFloorState = {
-    refLengthM,
+    refLengthGrundrissM,
+    refLengthSchnittM,
     scaleGrundriss,
     scaleSchnitt,
     refPtsGrundriss,
     refPtsSchnitt,
-    roomsPoints: rooms.map(r=>r.points), roomsPointsNorm: rooms.map(r=>r.pointsNorm||null)
+    roomsPoints: rooms.map(r=>r.points),
+    roomsPointsNorm: rooms.map(r=>r.pointsNorm||null)
   };
   const dbg=document.getElementById('st-debug');
   if(dbg){
-    dbg.textContent = 'refLengthM=' + (refLengthM===null?'NULL':refLengthM);
+    const g = refLengthGrundrissM===null?'NULL':refLengthGrundrissM;
+    const s = refLengthSchnittM===null?'NULL':refLengthSchnittM;
+    dbg.textContent = 'GR=' + g + 'm | SC=' + s + 'm';
   }
 }
 
@@ -971,7 +980,7 @@ function resize(){
   }
 }
 window.addEventListener('resize',resize);
-window.__AUFMASS_BUILD='v37';
+window.__AUFMASS_BUILD='v39';
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
 
@@ -1066,7 +1075,8 @@ function roomStats(rm){
     let normH=2.5; // normale Raumhöhe (abgehängte Decke / Drempelhöhe)
 
     const sp=dc.schnittPts;
-    if(sp&&sp.length>=5&&scaleS){
+    const spAbsolute = Array.isArray(sp) && sp.length>=5 && sp.every(p => typeof p?.x==='number' && typeof p?.y==='number');
+    if(spAbsolute&&scaleS){
       const geo=getSchnittGeometry(sp,scaleS,dc);
       if(geo){
         knieH=geo.kniestockH;
