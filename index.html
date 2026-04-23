@@ -368,56 +368,6 @@ function getCurrentRotation(){return viewMode==='schnitt'?imgRotationSchnitt:img
 function setCurrentRotation(v){if(viewMode==='schnitt')imgRotationSchnitt=v;else imgRotationGrundriss=v;}
 let schnittResult=null;
 let traufKanten=[];
-
-// === Rotation-safe coordinate transforms ===
-function getRotation(view){
-  return view==='schnitt' ? imgRotationSchnitt : imgRotationGrundriss;
-}
-
-function screenToPlan(x,y,view){
-  const f = view==='schnitt'
-    ? {x:schnittX,y:schnittY,w:schnittW,h:schnittH}
-    : {x:imgX,y:imgY,w:imgW,h:imgH};
-
-  const rot = getRotation(view) * Math.PI/180;
-
-  // move to center
-  let cx = f.x + f.w/2;
-  let cy = f.y + f.h/2;
-
-  let dx = x - cx;
-  let dy = y - cy;
-
-  // inverse rotation
-  let rx =  dx*Math.cos(-rot) - dy*Math.sin(-rot);
-  let ry =  dx*Math.sin(-rot) + dy*Math.cos(-rot);
-
-  // normalize
-  return {
-    nx: (rx + f.w/2) / f.w,
-    ny: (ry + f.h/2) / f.h
-  };
-}
-
-function planToScreen(p,view){
-  const f = view==='schnitt'
-    ? {x:schnittX,y:schnittY,w:schnittW,h:schnittH}
-    : {x:imgX,y:imgY,w:imgW,h:imgH};
-
-  const rot = getRotation(view) * Math.PI/180;
-
-  let px = (p.nx * f.w) - f.w/2;
-  let py = (p.ny * f.h) - f.h/2;
-
-  let rx = px*Math.cos(rot) - py*Math.sin(rot);
-  let ry = px*Math.sin(rot) + py*Math.cos(rot);
-
-  return {
-    x: f.x + f.w/2 + rx,
-    y: f.y + f.h/2 + ry
-  };
-}
-
 let persistedRefPtsGrundrissRaw=null;
 let persistedRefPtsSchnittRaw=null;
 let persistedSchnittPtsRaw=null;
@@ -442,9 +392,9 @@ function denormalizePtsForView(pts,v){
   });
 }
 function applyPersistedGeometry(){
-  if(persistedRefPtsGrundrissRaw) refPtsGrundriss = persistedRefPtsGrundrissRaw.map(p=>planToScreen(p,'grundriss'));
-  if(persistedRefPtsSchnittRaw) refPtsSchnitt = persistedRefPtsSchnittRaw.map(p=>planToScreen(p,'schnitt'));
-  if(persistedSchnittPtsRaw) schnittPts = persistedSchnittPtsRaw.map(p=>planToScreen(p,'schnitt'));
+  if(persistedRefPtsGrundrissRaw) refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
+  if(persistedRefPtsSchnittRaw) refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
+  if(persistedSchnittPtsRaw) schnittPts = denormalizePtsForView(persistedSchnittPtsRaw,'schnitt');
   refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
 }
 
@@ -577,6 +527,7 @@ async function openFloor(id){
   showScreen('app');
   setTimeout(async ()=>{
     await restoreSavedPlans();
+    applyPersistedGeometry();
     applyPersistedGeometry();
     refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
     refPts=[...refPtsGrundriss];
@@ -793,9 +744,9 @@ function scheduleSave(){
 async function saveFloorState(){
   if(!currentFloor)return;
   setFloorStateCache();
-  const normRefGrundriss = refPtsGrundriss.map(p=>screenToPlan(p.x,p.y,'grundriss'));
-  const normRefSchnitt = refPtsSchnitt.map(p=>screenToPlan(p.x,p.y,'schnitt'));
-  const normSchnittPts = schnittPts.map(p=>screenToPlan(p.x,p.y,'schnitt'));
+  const normRefGrundriss = normalizePtsForView(refPtsGrundriss,'grundriss');
+  const normRefSchnitt = normalizePtsForView(refPtsSchnitt,'schnitt');
+  const normSchnittPts = normalizePtsForView(schnittPts,'schnitt');
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
@@ -893,11 +844,11 @@ function setFloorStateCache(){
     const payload={
       scaleGrundriss,
       scaleSchnitt,
-      refPtsGrundriss: refPtsGrundriss.map(p=>screenToPlan(p.x,p.y,'grundriss')),
-      refPtsSchnitt: refPtsSchnitt.map(p=>screenToPlan(p.x,p.y,'schnitt')),
+      refPtsGrundriss: normalizePtsForView(refPtsGrundriss,'grundriss'),
+      refPtsSchnitt: normalizePtsForView(refPtsSchnitt,'schnitt'),
       imgRotationGrundriss,
       imgRotationSchnitt,
-      schnittPts: schnittPts.map(p=>screenToPlan(p.x,p.y,'schnitt'))
+      schnittPts: normalizePtsForView(schnittPts,'schnitt')
     };
     localStorage.setItem(key, JSON.stringify(payload));
   }catch(e){
@@ -1593,13 +1544,13 @@ async function closeRef(ok){
       if(viewMode==='schnitt'){
         scaleSchnitt=scale;
         refPtsSchnitt=[...refPts];
-        persistedRefPtsSchnittRaw=refPtsSchnitt.map(p=>screenToPlan(p.x,p.y,'schnitt'));
+        persistedRefPtsSchnittRaw=normalizePtsForView(refPtsSchnitt,'schnitt');
         // Show schnitt draw button
         setTimeout(()=>setView('schnitt'),50);
       } else {
         scaleGrundriss=scale;
         refPtsGrundriss=[...refPts];
-        persistedRefPtsGrundrissRaw=refPtsGrundriss.map(p=>screenToPlan(p.x,p.y,'grundriss'));
+        persistedRefPtsGrundrissRaw=normalizePtsForView(refPtsGrundriss,'grundriss');
       }
       await saveFloorState();
       scheduleSave();
@@ -2056,9 +2007,9 @@ function confirmSchnitt(){
   schnittResult={kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount,neigungLeft,neigungRight};
   // Save to floor
   // Update persistedRaw for schnitt pts
-  persistedSchnittPtsRaw=schnittPts.map(p=>screenToPlan(p.x,p.y,'schnitt'));
+  persistedSchnittPtsRaw=normalizePtsForView(schnittPts,'schnitt');
   if(currentFloor){
-    const normPts=schnittPts.map(p=>screenToPlan(p.x,p.y,'schnitt'));
+    const normPts=normalizePtsForView(schnittPts,'schnitt');
     const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:normPts,ptsCount,neigungLeft,neigungRight};
     sb.patch('floors',{dach_config:updDach},'?id=eq.'+currentFloor.id);
     currentFloor.dach_config=updDach;
