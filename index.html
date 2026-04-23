@@ -368,6 +368,36 @@ function getCurrentRotation(){return viewMode==='schnitt'?imgRotationSchnitt:img
 function setCurrentRotation(v){if(viewMode==='schnitt')imgRotationSchnitt=v;else imgRotationGrundriss=v;}
 let schnittResult=null;
 let traufKanten=[];
+let persistedRefPtsGrundrissRaw=null;
+let persistedRefPtsSchnittRaw=null;
+let persistedSchnittPtsRaw=null;
+
+function getFrameForView(v){
+  if(v==='schnitt') return {x:schnittX,y:schnittY,w:schnittW,h:schnittH};
+  return {x:imgX,y:imgY,w:imgW,h:imgH};
+}
+function normalizePtsForView(pts,v){
+  const f=getFrameForView(v);
+  if(!pts||!pts.length||!f.w||!f.h) return pts||[];
+  return pts.map(p=>({rx:(p.x-f.x)/f.w, ry:(p.y-f.y)/f.h}));
+}
+function denormalizePtsForView(pts,v){
+  const f=getFrameForView(v);
+  if(!pts||!pts.length||!f.w||!f.h) return pts||[];
+  return pts.map(p=>{
+    if(p && typeof p.rx==='number' && typeof p.ry==='number'){
+      return {x:f.x + p.rx*f.w, y:f.y + p.ry*f.h};
+    }
+    return p;
+  });
+}
+function applyPersistedGeometry(){
+  if(persistedRefPtsGrundrissRaw) refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
+  if(persistedRefPtsSchnittRaw) refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
+  if(persistedSchnittPtsRaw) schnittPts = denormalizePtsForView(persistedSchnittPtsRaw,'schnitt');
+  refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
+}
+
 
 // ── SCREEN MANAGEMENT ─────────────────────────────────────
 function showScreen(name){
@@ -704,22 +734,25 @@ function scheduleSave(){
 async function saveFloorState(){
   if(!currentFloor)return;
   setFloorStateCache();
+  const normRefGrundriss = normalizePtsForView(refPtsGrundriss,'grundriss');
+  const normRefSchnitt = normalizePtsForView(refPtsSchnitt,'schnitt');
+  const normSchnittPts = normalizePtsForView(schnittPts,'schnitt');
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
       scale_schnitt:scaleSchnitt,
-      ref_points:refPtsGrundriss,
-      ref_pts_grundriss:refPtsGrundriss,
-      ref_pts_schnitt:refPtsSchnitt,
+      ref_points:normRefGrundriss,
+      ref_pts_grundriss:normRefGrundriss,
+      ref_pts_schnitt:normRefSchnitt,
       img_rotation:imgRotationGrundriss,
       schnitt_rotation:imgRotationSchnitt,
-      schnitt_pts:schnittPts
+      schnitt_pts:normSchnittPts
     },'?id=eq.'+currentFloor.id);
-    currentFloor.ref_pts_grundriss=refPtsGrundriss;
-    currentFloor.ref_pts_schnitt=refPtsSchnitt;
+    currentFloor.ref_pts_grundriss=normRefGrundriss;
+    currentFloor.ref_pts_schnitt=normRefSchnitt;
     currentFloor.img_rotation=imgRotationGrundriss;
     currentFloor.schnitt_rotation=imgRotationSchnitt;
-    currentFloor.schnitt_pts=schnittPts;
+    currentFloor.schnitt_pts=normSchnittPts;
     currentFloor.scale_px_per_m=scaleGrundriss;
     currentFloor.scale_schnitt=scaleSchnitt;
     showSaveIndicator();
@@ -860,7 +893,7 @@ function resize(){
   const r=wrap.getBoundingClientRect();
   cv.width=r.width;cv.height=r.height;
   if(currentFloor && (currentFloor.plan_data || currentFloor.schnitt_plan_data) && r.width && r.height){
-    restoreSavedPlans().then(()=>draw());
+    restoreSavedPlans().then(()=>{applyPersistedGeometry(); draw();});
   } else {
     draw();
   }
