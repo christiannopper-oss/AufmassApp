@@ -139,7 +139,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v36</span>
+    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v37</span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -534,7 +534,12 @@ async function openFloor(id){
 
   // load rooms
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
-  rooms=rawRooms.map(rm=>({...rm,points:(rm.points||[]),traufKanten:rm.trauf_kanten||[]}));
+  rooms=rawRooms.map(rm=>({
+    ...rm,
+    pointsNorm:(rm.points||[]),
+    points:[],
+    traufKanten:rm.trauf_kanten||[]
+  }));
 
   // reset visible plans; restore after the app screen is visible
   img=null;imgX=0;imgY=0;imgW=0;imgH=0;
@@ -551,7 +556,7 @@ async function openFloor(id){
     applyPersistedGeometry();
     rooms = rooms.map(rm=>({
       ...rm,
-      points: denormalizePtsForView((rm.points||[]),'grundriss')
+      points: denormalizePtsForView((rm.pointsNorm||rm.points||[]),'grundriss')
     }));
     refConfirmed=((viewMode==='schnitt'?scaleSchnitt:scaleGrundriss)!==null) && (viewMode==='schnitt'?refPtsSchnitt.length===2:refPtsGrundriss.length===2);
     refPts=[...refPtsGrundriss];
@@ -798,6 +803,7 @@ async function saveFloorState(){
 }
 async function saveRoom(room){
   const normalizedPoints = normalizePtsForView(room.points||[],'grundriss');
+  room.pointsNorm = normalizedPoints;
   if(!room.id){
     const res=await sb.post('rooms',{floor_id:currentFloor.id,name:room.name,height:room.height,points:normalizedPoints,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]});
     if(res&&res[0])room.id=res[0].id;
@@ -805,7 +811,7 @@ async function saveRoom(room){
     await sb.patch('rooms',{name:room.name,height:room.height,points:normalizedPoints,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]},'?id=eq.'+room.id);
   }
   showSaveIndicator();
-    syncDebugState();
+  syncDebugState();
 }
 async function deleteRoomFromDB(id){
   await sb.delete('rooms','?id=eq.'+id);
@@ -908,7 +914,7 @@ function syncDebugState(){
     scaleSchnitt,
     refPtsGrundriss,
     refPtsSchnitt,
-    roomsPoints: rooms.map(r=>r.points)
+    roomsPoints: rooms.map(r=>r.points), roomsPointsNorm: rooms.map(r=>r.pointsNorm||null)
   };
   const dbg=document.getElementById('st-debug');
   if(dbg){
@@ -961,7 +967,7 @@ function resize(){
   }
 }
 window.addEventListener('resize',resize);
-window.__AUFMASS_BUILD='v36';
+window.__AUFMASS_BUILD='v37';
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
 
