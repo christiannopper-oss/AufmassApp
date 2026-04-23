@@ -1125,6 +1125,14 @@ function draw(){
       ctx.font=`${10/zoom}px monospace`;ctx.fillStyle='#1D9E75';ctx.textAlign='center';ctx.fillText(i+1,p.x,p.y-9/zoom);
     });
     if(refPts.length===2){ctx.beginPath();ctx.moveTo(refPts[0].x,refPts[0].y);ctx.lineTo(refPts[1].x,refPts[1].y);ctx.strokeStyle='#1D9E75';ctx.lineWidth=2/zoom;ctx.setLineDash([5/zoom,3/zoom]);ctx.stroke();ctx.setLineDash([]);}
+    if((tool==='ref') && mouseW){
+      const cp=snapInfo||mouseW;
+      ctx.beginPath();
+      ctx.moveTo(cp.x-10/zoom,cp.y); ctx.lineTo(cp.x+10/zoom,cp.y);
+      ctx.moveTo(cp.x,cp.y-10/zoom); ctx.lineTo(cp.x,cp.y+10/zoom);
+      ctx.strokeStyle='#1D9E75'; ctx.lineWidth=0.8/zoom; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cp.x,cp.y,2.2/zoom,0,Math.PI*2); ctx.fillStyle='#1D9E75'; ctx.fill();
+    }
     if(snapInfo&&snapInfo.type){ctx.beginPath();ctx.arc(snapInfo.x,snapInfo.y,SNAP_PT/zoom,0,Math.PI*2);ctx.strokeStyle='#1D9E75';ctx.lineWidth=1.5/zoom;ctx.stroke();}
     // Draw schnitt points
     if(schnittPts.length>0){
@@ -1212,6 +1220,14 @@ function draw(){
       }
     }
   }
+  if((tool==='ref') && mouseW){
+    const cp=snapInfo||mouseW;
+    ctx.beginPath();
+    ctx.moveTo(cp.x-10/zoom,cp.y); ctx.lineTo(cp.x+10/zoom,cp.y);
+    ctx.moveTo(cp.x,cp.y-10/zoom); ctx.lineTo(cp.x,cp.y+10/zoom);
+    ctx.strokeStyle='#1D9E75'; ctx.lineWidth=0.8/zoom; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cp.x,cp.y,2.2/zoom,0,Math.PI*2); ctx.fillStyle='#1D9E75'; ctx.fill();
+  }
   if(snapInfo&&snapInfo.type){const col=snapInfo.type==='line'?'#1D9E75':'#c8a96e';ctx.beginPath();ctx.arc(snapInfo.x,snapInfo.y,SNAP_PT/zoom,0,Math.PI*2);ctx.strokeStyle=col;ctx.lineWidth=1.5/zoom;ctx.stroke();if(snapInfo.type==='line'){ctx.beginPath();ctx.arc(snapInfo.x,snapInfo.y,3/zoom,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();}}
   ctx.restore();
   if(magActive&&magWorldPos)renderMag(magWorldPos.x,magWorldPos.y);
@@ -1233,9 +1249,17 @@ function updStatus(){
   if(viewMode==='schnitt'){
     if(schnittDrawMode){
       document.getElementById('st-m').textContent=schnittPts.length<5?'Punkt '+(schnittPts.length+1)+' setzen (mind. 5, max. 6)':'Fertig → ✓ Auswerten';
+    } else if(tool==='ref'){
+      document.getElementById('st-m').textContent=refPts.length===0?'Punkt 1 setzen':refPts.length===1?'Punkt 2 setzen':refConfirmed?'Kalibriert':'Punkte prüfen → ✓ Bestätigen';
     } else {
       document.getElementById('st-m').textContent=scaleSchnitt?'Kalibriert ✓ – Schnitt zeichnen':'Zuerst Referenzmaß setzen';
     }
+    document.getElementById('btn-ref-confirm').style.display=refReady?'':'none';
+    document.getElementById('btn-del').style.display='none';
+    document.getElementById('btn-undo').style.display='none';
+    document.getElementById('btn-close').style.display='none';
+    document.getElementById('btn-esc').style.display='none';
+    document.getElementById('btn-export').style.display=(scale&&rooms.length>0&&viewMode!=='schnitt')?'':'none';
     return;
   }
   document.getElementById('st-m').textContent=msgs[tool]||'';
@@ -1307,7 +1331,7 @@ function updSidebar(){
           Maß: <b>${refMeasure!==null?refMeasure.toFixed(2)+' m':'nicht gesetzt'}</b><br>
           Status: <b>${activeRefScale?'kalibriert':'nicht kalibriert'}</b><br>
           Punkte: <b>2 gesetzt</b><br>
-          <span style="color:#999">Tippen zum Bearbeiten. Im Ref-Modus können die Punkte verschoben werden.</span>
+          <span style="color:#999">Tippen zum Bearbeiten. Im Ref-Modus können die Punkte verschoben werden. Mit ✕ wird das Ref gelöscht.</span>
         </div>
       </div>`
     : '';
