@@ -1059,6 +1059,7 @@ function roomStats(rm){
 
 // ── DRAW ───────────────────────────────────────────────────
 function draw(){
+  const activeRotation=viewMode==='schnitt'?imgRotationSchnitt:imgRotationGrundriss;
   ctx.clearRect(0,0,cv.width,cv.height);ctx.save();ctx.translate(panX,panY);ctx.scale(zoom,zoom);
   if(viewMode==='schnitt'){
     if(schnittImg){
@@ -1104,10 +1105,10 @@ function draw(){
     ctx.save();
     const cx2=imgX+imgW/2, cy2=imgY+imgH/2;
     ctx.translate(cx2,cy2);
-    ctx.rotate(imgRotation*Math.PI/180);
+    ctx.rotate(activeRotation*Math.PI/180);
     // draw at natural size centered
-    const drawW=imgRotation===90||imgRotation===270?imgH:imgW;
-    const drawH=imgRotation===90||imgRotation===270?imgW:imgH;
+    const drawW=activeRotation===90||activeRotation===270?imgH:imgW;
+    const drawH=activeRotation===90||activeRotation===270?imgW:imgH;
     ctx.drawImage(img,-drawW/2,-drawH/2,drawW,drawH);
     ctx.restore();
   }
