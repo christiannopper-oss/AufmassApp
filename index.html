@@ -465,7 +465,7 @@ function renderFloors(){
     </div>`).join('');
 }
 
-async async function openFloor(id){
+async function openFloor(id){
   currentFloor=floors.find(f=>f.id===id);
   document.getElementById('current-floor-label').textContent=currentProject.name+' / '+currentFloor.name;
   // load floor state
@@ -740,7 +740,7 @@ function scheduleSave(){
   if(saveTimer)clearTimeout(saveTimer);
   saveTimer=setTimeout(saveFloorState,1500);
 }
-async async function saveFloorState(){
+async function saveFloorState(){
   if(!currentFloor)return;
   setFloorStateCache();
   const normRefGrundriss = normalizePtsForView(refPtsGrundriss,'grundriss');
@@ -1803,7 +1803,7 @@ async function loadPageImage(pageNum){
 }
 
 
-async async function restoreSavedPlans(){
+async function restoreSavedPlans(){
   if(!currentFloor)return;
   const r=wrap.getBoundingClientRect();
   if(!r.width || !r.height)return;
