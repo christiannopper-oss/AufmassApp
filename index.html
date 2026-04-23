@@ -446,10 +446,11 @@ async function openFloor(id){
   // load dach config for this floor
   window.currentDachConfig=currentFloor.dach_config||null;
   window.currentDefaultHeight=currentFloor.default_height||2.5;
-  // restore schnitt
-  schnittPts=currentFloor.schnitt_pts||(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||[];
-  imgRotationGrundriss=currentFloor.img_rotation||0;
-  imgRotationSchnitt=currentFloor.schnitt_rotation||0;
+  // restore schnitt / ref / rotation (DB first, then local fallback)
+  const localState=getFloorStateCache()||{};
+  schnittPts=currentFloor.schnitt_pts||(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||localState.schnittPts||[];
+  imgRotationGrundriss=(currentFloor.img_rotation ?? localState.imgRotationGrundriss ?? 0);
+  imgRotationSchnitt=(currentFloor.schnitt_rotation ?? localState.imgRotationSchnitt ?? 0);
   schnittResult=null;
   schnittImg=null;schnittX=0;schnittY=0;schnittW=0;schnittH=0;
   traufKanten=[];
@@ -457,8 +458,11 @@ async function openFloor(id){
   grundrissPage=currentFloor.grundriss_page||1;
   schnittPage=currentFloor.schnitt_page||1;
   // restore persisted ref pts from floor data
-  refPtsGrundriss=currentFloor.ref_pts_grundriss||[];
-  refPtsSchnitt=currentFloor.ref_pts_schnitt||[];
+  refPtsGrundriss=currentFloor.ref_pts_grundriss||localState.refPtsGrundriss||[];
+  refPtsSchnitt=currentFloor.ref_pts_schnitt||localState.refPtsSchnitt||[];
+  scaleGrundriss=(currentFloor.scale_px_per_m ?? localState.scaleGrundriss ?? null);
+  scaleSchnitt=(currentFloor.scale_schnitt ?? localState.scaleSchnitt ?? null);
+  scale=scaleGrundriss;
   refPts=[...refPtsGrundriss]; // start in grundriss mode
   // show/hide dach buttons
   const isDach=currentFloor.dach_config&&currentFloor.dach_config.aktiv;
@@ -699,6 +703,7 @@ function scheduleSave(){
 }
 async function saveFloorState(){
   if(!currentFloor)return;
+  setFloorStateCache();
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
@@ -715,6 +720,8 @@ async function saveFloorState(){
     currentFloor.img_rotation=imgRotationGrundriss;
     currentFloor.schnitt_rotation=imgRotationSchnitt;
     currentFloor.schnitt_pts=schnittPts;
+    currentFloor.scale_px_per_m=scaleGrundriss;
+    currentFloor.scale_schnitt=scaleSchnitt;
     showSaveIndicator();
   }catch(e){console.error('Save error',e);}
 }
@@ -782,6 +789,41 @@ function clearPlanCache(isSchnitt=false){
     console.warn('Local plan cache clear failed', e);
   }
 }
+
+function getFloorStateCacheKey(){
+  if(!currentFloor||!currentFloor.id)return null;
+  return 'aufmass-floor-state-'+currentFloor.id;
+}
+function setFloorStateCache(){
+  try{
+    const key=getFloorStateCacheKey();
+    if(!key)return;
+    const payload={
+      scaleGrundriss,
+      scaleSchnitt,
+      refPtsGrundriss,
+      refPtsSchnitt,
+      imgRotationGrundriss,
+      imgRotationSchnitt,
+      schnittPts
+    };
+    localStorage.setItem(key, JSON.stringify(payload));
+  }catch(e){
+    console.warn('Local floor state cache write failed', e);
+  }
+}
+function getFloorStateCache(){
+  try{
+    const key=getFloorStateCacheKey();
+    if(!key)return null;
+    const raw=localStorage.getItem(key);
+    return raw?JSON.parse(raw):null;
+  }catch(e){
+    console.warn('Local floor state cache read failed', e);
+    return null;
+  }
+}
+
 
 function showSaveIndicator(){
   const el=document.getElementById('save-ind');el.classList.add('show');
@@ -1259,7 +1301,7 @@ function updSidebar(){
   const refMeasure = getRefMeasureFromState(viewMode);
   const refCard = (activeRefPts && activeRefPts.length===2)
     ? `<div class="rc" onclick="openRefEditor()">
-        <div class="rn"><span>Referenzmaß</span><div style="display:flex;gap:4px"><button class="edit-btn" onclick="openRefEditor();event.stopPropagation()">✎</button></div></div>
+        <div class="rn"><span>Referenzmaß</span><div style="display:flex;gap:4px"><button class="edit-btn" onclick="openRefEditor();event.stopPropagation()">✎</button><button class="edit-btn" style="border-color:#c0392b33;color:#c0392b" onclick="resetRef();event.stopPropagation()">✕</button></div></div>
         <div class="rs">
           Ansicht: <b>${viewMode==='schnitt'?'Schnitt':'Grundriss'}</b><br>
           Maß: <b>${refMeasure!==null?refMeasure.toFixed(2)+' m':'nicht gesetzt'}</b><br>
@@ -1365,7 +1407,7 @@ function selR(i){selRoom=selRoom===i?null:i;updStatus();updSidebar();draw();}
 async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom];if(rm.id)await deleteRoomFromDB(rm.id);rooms.splice(selRoom,1);selRoom=null;updStatus();updSidebar();draw();}
 function undoPoint(){if(curPts.length>0){curPts.pop();updStatus();draw();}}
 function cancelDraw(){curPts=[];drag=null;hideMag();updStatus();draw();}
-function resetRef(){
+async function resetRef(){
   if(!confirm('Referenzmaß wirklich löschen?'))return;
   if(viewMode==='schnitt'){
     scaleSchnitt=null;
@@ -1375,18 +1417,18 @@ function resetRef(){
     refPtsGrundriss=[];
   }
   scale=null;refPts=[];refConfirmed=false;
+  await saveFloorState();
   setTool('ref');updStatus();updSidebar();draw();scheduleSave();
 }
 async function delEntry(ri,key,ei){rooms[ri][key].splice(ei,1);await saveRoom(rooms[ri]);updSidebar();updStatus();}
 
 // ref confirm — new flow
 function confirmRef(){
-  // works same for both grundriss and schnitt
   if(refPts.length!==2)return;
-  refConfirmed=true;
   centerModal('mw-ref');
-  document.getElementById('r-len').value='';
-  document.getElementById('r-ok').disabled=true;
+  const current = getRefMeasureFromState(viewMode);
+  document.getElementById('r-len').value = current ? current.toFixed(2) : '';
+  document.getElementById('r-ok').disabled = false;
   setTimeout(()=>document.getElementById('r-len').focus(),50);
   updStatus();draw();
 }
@@ -1534,20 +1576,13 @@ function handleTap(wx,wy){
         draw();
       }
     }
-    // In schnitt view, ref tool works normally (handled below)
+    // In schnitt view, ref tool uses the same confirm flow as im Grundriss
     if(!schnittDrawMode&&tool==='ref'){
       if(refConfirmed)return;
       if(refPts.length<2){
         const s=getSnap(wx,wy);
         refPts.push({x:s.x,y:s.y});
         updStatus();
-        // Auto-open modal when 2nd point set
-        if(refPts.length===2){
-          centerModal('mw-ref');
-          document.getElementById('r-len').value='';
-          document.getElementById('r-ok').disabled=true;
-          setTimeout(()=>document.getElementById('r-len').focus(),50);
-        }
       }
       draw();
     }
