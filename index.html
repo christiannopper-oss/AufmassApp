@@ -470,7 +470,7 @@ async function openFloor(id){
     if(sch)sch.style.display=isDach?'':'none';
     if(trf)trf.style.display=isDach?'':'none';
   },100);
-  refConfirmed=false;
+  refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
   // load rooms
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
   rooms=rawRooms.map(rm=>({...rm,traufKanten:rm.trauf_kanten||[]}));
@@ -1063,7 +1063,14 @@ function draw(){
   ctx.clearRect(0,0,cv.width,cv.height);ctx.save();ctx.translate(panX,panY);ctx.scale(zoom,zoom);
   if(viewMode==='schnitt'){
     if(schnittImg){
-      ctx.drawImage(schnittImg,schnittX,schnittY,schnittW,schnittH);
+      ctx.save();
+      const cx2=schnittX+schnittW/2, cy2=schnittY+schnittH/2;
+      ctx.translate(cx2,cy2);
+      ctx.rotate(activeRotation*Math.PI/180);
+      const drawW=activeRotation===90||activeRotation===270?schnittH:schnittW;
+      const drawH=activeRotation===90||activeRotation===270?schnittW:schnittH;
+      ctx.drawImage(schnittImg,-drawW/2,-drawH/2,drawW,drawH);
+      ctx.restore();
     } else {
       // Show placeholder
       ctx.fillStyle='#e8e5de';ctx.fillRect(0,0,cv.width/zoom,cv.height/zoom);
@@ -1414,7 +1421,7 @@ async function closeRoom(ok){
     else if(pendingPts){const rm={name:n,height:h,points:pendingPts,abzuege:[],zusaetze:[]};rooms.push(rm);await saveRoom(rm);}}}
   editRoomIdx=null;pendingPts=null;curPts=[];updStatus();updSidebar();draw();
 }
-function closeRef(ok){
+async function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
   if(ok){
     const rl=parseFloat(document.getElementById('r-len').value);
@@ -1428,10 +1435,11 @@ function closeRef(ok){
         scaleGrundriss=scale;
         refPtsGrundriss=[...refPts];
       }
+      await saveFloorState();
       scheduleSave();
     }
   }
-  refConfirmed=true;setTool('draw');updStatus();updSidebar();draw();
+  refConfirmed=(refPts.length===2 && !!scale);setTool('draw');updStatus();updSidebar();draw();
 }
 function openEntry(ri,mode){entryTarget={roomIdx:ri,mode};document.getElementById('entry-modal-title').textContent=mode==='abzug'?'Abzug hinzufügen':'Zusatzfläche hinzufügen';document.getElementById('e-name').value=mode==='abzug'?'Tür':'Stichwand';document.getElementById('e-b').value=mode==='abzug'?'0.90':'1.00';document.getElementById('e-h').value=mode==='abzug'?'2.00':'1.20';document.getElementById('e-n').value='1';document.getElementById('e-vob').checked=false;document.getElementById('vob-row').style.display=mode==='abzug'?'flex':'none';centerModal('mw-entry');setTimeout(()=>document.getElementById('e-name').focus(),50);}
 async function closeEntry(ok){
@@ -1605,7 +1613,7 @@ cv.addEventListener('mouseup',async e=>{
   if(dragRefIdx!==null){
     if(viewMode==='schnitt') refPtsSchnitt=[...refPts];
     else refPtsGrundriss=[...refPts];
-    dragRefIdx=null;updSidebar();draw();scheduleSave();return;
+    dragRefIdx=null;updSidebar();draw();saveFloorState();scheduleSave();return;
   }
   if(drag){const rm=rooms[drag.roomIdx];await saveRoom(rm);drag=null;updSidebar();draw();}
   isPanning=false;
@@ -1656,7 +1664,7 @@ cv.addEventListener('pointerup',async e=>{
   if(dragRefIdx!==null){
     if(viewMode==='schnitt') refPtsSchnitt=[...refPts];
     else refPtsGrundriss=[...refPts];
-    dragRefIdx=null;updSidebar();draw();isPanning=false;scheduleSave();return;
+    dragRefIdx=null;updSidebar();draw();isPanning=false;saveFloorState();scheduleSave();return;
   }
   if(drag){const rm=rooms[drag.roomIdx];await saveRoom(rm);drag=null;updSidebar();draw();isPanning=false;return;}
   isPanning=false;
@@ -1829,11 +1837,11 @@ function setView(v){
   if(v==='schnitt'){
     scale=scaleSchnitt;
     refPts=[...refPtsSchnitt];
-    refConfirmed=scaleSchnitt!==null;
+    refConfirmed=scaleSchnitt!==null && refPtsSchnitt.length===2;
   } else {
     scale=scaleGrundriss;
     refPts=[...refPtsGrundriss];
-    refConfirmed=scaleGrundriss!==null;
+    refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
   }
   const isDach=currentFloor&&currentFloor.dach_config&&currentFloor.dach_config.aktiv;
   document.getElementById('btn-gdr')&&(document.getElementById('btn-gdr').style.display=isDach?'':'none');
@@ -1912,7 +1920,7 @@ function fitSchnitt(){
   schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
 }
 
-function rotatePlan(){
+async function rotatePlan(){
   if(viewMode==='grundriss'&&rooms.length>0){
     alert('Bitte zuerst alle Räume löschen bevor der Plan gedreht wird – sonst stimmen die Koordinaten nicht mehr.');return;
   }
@@ -1930,6 +1938,7 @@ function rotatePlan(){
   } else {
     imgW=srcW*ratio;imgH=srcH*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
   }
+  await saveFloorState();
   scheduleSave();
   draw();
 }
