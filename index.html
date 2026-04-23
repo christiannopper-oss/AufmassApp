@@ -139,7 +139,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v40</span>
+    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v41</span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -980,7 +980,7 @@ function resize(){
   }
 }
 window.addEventListener('resize',resize);
-window.__AUFMASS_BUILD='v40';
+window.__AUFMASS_BUILD='v41';
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
 
@@ -2054,7 +2054,7 @@ function setView(v){
     if(suBtn)suBtn.style.display='none';
     schnittDrawMode=false;
   }
-  draw();updStatus();
+  draw();updStatus();updSidebar();syncDebugState();
 }
 
 function startSchnittDraw(){
