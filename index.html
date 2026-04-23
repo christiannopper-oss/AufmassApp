@@ -368,23 +368,22 @@ function getCurrentRotation(){return viewMode==='schnitt'?imgRotationSchnitt:img
 function setCurrentRotation(v){if(viewMode==='schnitt')imgRotationSchnitt=v;else imgRotationGrundriss=v;}
 let schnittResult=null;
 let traufKanten=[];
-let persistedRefPtsGrundrissRaw=[];
-let persistedRefPtsSchnittRaw=[];
-let persistedSchnittPtsRaw=[];
+let persistedRefPtsGrundrissRaw=null;
+let persistedRefPtsSchnittRaw=null;
+let persistedSchnittPtsRaw=null;
 
 function getFrameForView(v){
-  return v==='schnitt'
-    ? {x:schnittX,y:schnittY,w:schnittW,h:schnittH}
-    : {x:imgX,y:imgY,w:imgW,h:imgH};
+  if(v==='schnitt') return {x:schnittX,y:schnittY,w:schnittW,h:schnittH};
+  return {x:imgX,y:imgY,w:imgW,h:imgH};
 }
 function normalizePtsForView(pts,v){
   const f=getFrameForView(v);
-  if(!pts||!pts.length||!f.w||!f.h)return pts||[];
-  return pts.map(p=>({rx:(p.x-f.x)/f.w,ry:(p.y-f.y)/f.h}));
+  if(!pts||!pts.length||!f.w||!f.h) return pts||[];
+  return pts.map(p=>({rx:(p.x-f.x)/f.w, ry:(p.y-f.y)/f.h}));
 }
 function denormalizePtsForView(pts,v){
   const f=getFrameForView(v);
-  if(!pts||!pts.length||!f.w||!f.h)return pts||[];
+  if(!pts||!pts.length||!f.w||!f.h) return pts||[];
   return pts.map(p=>{
     if(p && typeof p.rx==='number' && typeof p.ry==='number'){
       return {x:f.x + p.rx*f.w, y:f.y + p.ry*f.h};
@@ -393,9 +392,9 @@ function denormalizePtsForView(pts,v){
   });
 }
 function applyPersistedGeometry(){
-  refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
-  refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
-  schnittPts = denormalizePtsForView(persistedSchnittPtsRaw,'schnitt');
+  if(persistedRefPtsGrundrissRaw) refPtsGrundriss = denormalizePtsForView(persistedRefPtsGrundrissRaw,'grundriss');
+  if(persistedRefPtsSchnittRaw) refPtsSchnitt = denormalizePtsForView(persistedRefPtsSchnittRaw,'schnitt');
+  if(persistedSchnittPtsRaw) schnittPts = denormalizePtsForView(persistedSchnittPtsRaw,'schnitt');
   refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
 }
 
@@ -479,9 +478,7 @@ async function openFloor(id){
   window.currentDefaultHeight=currentFloor.default_height||2.5;
   // restore schnitt / ref / rotation (DB first, then local fallback)
   const localState=getFloorStateCache()||{};
-  persistedSchnittPtsRaw=currentFloor.schnitt_pts||(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||localState.schnittPts||[];
-  persistedRefPtsGrundrissRaw=currentFloor.ref_pts_grundriss||localState.refPtsGrundriss||[];
-  persistedRefPtsSchnittRaw=currentFloor.ref_pts_schnitt||localState.refPtsSchnitt||[];
+  schnittPts=currentFloor.schnitt_pts||(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||localState.schnittPts||[];
   imgRotationGrundriss=(currentFloor.img_rotation ?? localState.imgRotationGrundriss ?? 0);
   imgRotationSchnitt=(currentFloor.schnitt_rotation ?? localState.imgRotationSchnitt ?? 0);
   schnittResult=null;
@@ -490,14 +487,13 @@ async function openFloor(id){
   pdfDoc=null;totalPages=1;pageImages={};
   grundrissPage=currentFloor.grundriss_page||1;
   schnittPage=currentFloor.schnitt_page||1;
-  // restore persisted ref/scales from floor data
-  refPtsGrundriss=[];
-  refPtsSchnitt=[];
-  schnittPts=[];
+  // restore persisted ref pts from floor data
+  refPtsGrundriss=currentFloor.ref_pts_grundriss||localState.refPtsGrundriss||[];
+  refPtsSchnitt=currentFloor.ref_pts_schnitt||localState.refPtsSchnitt||[];
   scaleGrundriss=(currentFloor.scale_px_per_m ?? localState.scaleGrundriss ?? null);
   scaleSchnitt=(currentFloor.scale_schnitt ?? localState.scaleSchnitt ?? null);
   scale=scaleGrundriss;
-  refPts=[]; // filled after plans are restored
+  refPts=[...refPtsGrundriss]; // start in grundriss mode
   // show/hide dach buttons
   const isDach=currentFloor.dach_config&&currentFloor.dach_config.aktiv;
   setTimeout(()=>{
@@ -525,7 +521,6 @@ async function openFloor(id){
   showScreen('app');
   setTimeout(async ()=>{
     await restoreSavedPlans();
-    applyPersistedGeometry();
     updPageNav();
     updStatus();
     updSidebar();
@@ -739,9 +734,9 @@ function scheduleSave(){
 async function saveFloorState(){
   if(!currentFloor)return;
   setFloorStateCache();
-  const normRefGrundriss=normalizePtsForView(refPtsGrundriss,'grundriss');
-  const normRefSchnitt=normalizePtsForView(refPtsSchnitt,'schnitt');
-  const normSchnittPts=normalizePtsForView(schnittPts,'schnitt');
+  const normRefGrundriss = normalizePtsForView(refPtsGrundriss,'grundriss');
+  const normRefSchnitt = normalizePtsForView(refPtsSchnitt,'schnitt');
+  const normSchnittPts = normalizePtsForView(schnittPts,'schnitt');
   try{
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
@@ -1535,9 +1530,13 @@ async function closeRef(ok){
       if(viewMode==='schnitt'){
         scaleSchnitt=scale;
         refPtsSchnitt=[...refPts];
+        persistedRefPtsSchnittRaw=normalizePtsForView(refPtsSchnitt,'schnitt');
+        // Show schnitt draw button
+        setTimeout(()=>setView('schnitt'),50);
       } else {
         scaleGrundriss=scale;
         refPtsGrundriss=[...refPts];
+        persistedRefPtsGrundrissRaw=normalizePtsForView(refPtsGrundriss,'grundriss');
       }
       await saveFloorState();
       scheduleSave();
@@ -1993,8 +1992,11 @@ function confirmSchnitt(){
   const{kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount,neigungLeft,neigungRight}=geo;
   schnittResult={kniestockH,firstH,neigung,dachbreite,deckeH,ptsCount,neigungLeft,neigungRight};
   // Save to floor
+  // Update persistedRaw for schnitt pts
+  persistedSchnittPtsRaw=normalizePtsForView(schnittPts,'schnitt');
   if(currentFloor){
-    const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:[...schnittPts],ptsCount,neigungLeft,neigungRight};
+    const normPts=normalizePtsForView(schnittPts,'schnitt');
+    const updDach={...currentFloor.dach_config,kniestockH,firstH,neigung,dachbreite,deckeH,schnittPts:normPts,ptsCount,neigungLeft,neigungRight};
     sb.patch('floors',{dach_config:updDach},'?id=eq.'+currentFloor.id);
     currentFloor.dach_config=updDach;
   }
