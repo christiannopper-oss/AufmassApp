@@ -139,7 +139,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span>
+    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v36</span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -196,7 +196,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
     <span id="st-z">Zoom 100%</span>
     <span id="st-s" class="warn-c">Kalibrierung fehlt</span>
     <span id="st-r">0 Räume</span>
-    <span id="st-m" style="margin-left:auto"></span>
+    <span id="st-debug" style="margin-left:auto;color:#c0392b"></span><span id="st-m"></span>
   </div>
   <div id="main">
     <div id="cwrap" ondrop="handleDrop(event)" ondragover="event.preventDefault()">
@@ -338,7 +338,6 @@ let snapInfo=null,mouseW=null;
 let scale=null; // current active scale (alias)
 let scaleGrundriss=null; // scale for grundriss view
 let scaleSchnitt=null;   // scale for schnitt view
-let refLengthM=null;     // reales Referenzmaß in m (geräteunabhängig)
 let refLengthM=null;     // reales Referenzmaß in m (geräteunabhängig)
 let selRoom=null,pendingPts=null;
 let isPanning=false,lastPX=0,lastPY=0;
@@ -559,6 +558,7 @@ async function openFloor(id){
     updPageNav();
     updStatus();
     updSidebar();
+    syncDebugState();
     draw();
   },120);
 }
@@ -793,6 +793,7 @@ async function saveFloorState(){
     currentFloor.scale_schnitt=scaleSchnitt;
     currentFloor.ref_length_m=refLengthM;
     showSaveIndicator();
+    syncDebugState();
   }catch(e){console.error('Save error',e);}
 }
 async function saveRoom(room){
@@ -804,6 +805,7 @@ async function saveRoom(room){
     await sb.patch('rooms',{name:room.name,height:room.height,points:normalizedPoints,abzuege:room.abzuege||[],zusaetze:room.zusaetze||[],trauf_kanten:room.traufKanten||[]},'?id=eq.'+room.id);
   }
   showSaveIndicator();
+    syncDebugState();
 }
 async function deleteRoomFromDB(id){
   await sb.delete('rooms','?id=eq.'+id);
@@ -822,6 +824,7 @@ async function savePlanSnapshot(dataUrl,isSchnitt=false,pageNum=1){
       currentFloor.grundriss_page=pageNum;
     }
     showSaveIndicator();
+    syncDebugState();
   }catch(e){
     console.error('Plan save error',e);
     // local cache remains as fallback
@@ -896,6 +899,23 @@ function getFloorStateCache(){
 }
 
 
+
+function syncDebugState(){
+  window.refLengthM = refLengthM;
+  window.debugFloorState = {
+    refLengthM,
+    scaleGrundriss,
+    scaleSchnitt,
+    refPtsGrundriss,
+    refPtsSchnitt,
+    roomsPoints: rooms.map(r=>r.points)
+  };
+  const dbg=document.getElementById('st-debug');
+  if(dbg){
+    dbg.textContent = 'refLengthM=' + (refLengthM===null?'NULL':refLengthM);
+  }
+}
+
 function showSaveIndicator(){
   const el=document.getElementById('save-ind');el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),2000);
@@ -941,6 +961,7 @@ function resize(){
   }
 }
 window.addEventListener('resize',resize);
+window.__AUFMASS_BUILD='v36';
 
 function toW(cx,cy){const r=cv.getBoundingClientRect();return{x:(cx-r.left-panX)/zoom,y:(cy-r.top-panY)/zoom};}
 
@@ -1502,8 +1523,8 @@ function setTool(t){tool=t;
   // Show active draw indicator
   const drawInd=document.getElementById('btn-draw-active');
   if(drawInd)drawInd.style.display=t==='draw'?'':'none';if(t!=='draw')curPts=[];drag=null;hoverPt=null;hoverEdge=null;hideMag();updStatus();draw();}
-function selR(i){selRoom=selRoom===i?null:i;updStatus();updSidebar();draw();}
-async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom];if(rm.id)await deleteRoomFromDB(rm.id);rooms.splice(selRoom,1);selRoom=null;updStatus();updSidebar();draw();}
+function selR(i){selRoom=selRoom===i?null:i;updStatus();updSidebar();syncDebugState();draw();}
+async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom];if(rm.id)await deleteRoomFromDB(rm.id);rooms.splice(selRoom,1);selRoom=null;updStatus();updSidebar();syncDebugState();draw();}
 function undoPoint(){if(curPts.length>0){curPts.pop();updStatus();draw();}}
 function cancelDraw(){curPts=[];drag=null;hideMag();updStatus();draw();}
 async function resetRef(){
@@ -1517,7 +1538,7 @@ async function resetRef(){
   }
   scale=null;refPts=[];refConfirmed=false;
   await saveFloorState();
-  setTool('ref');updStatus();updSidebar();draw();scheduleSave();
+  setTool('ref');updStatus();updSidebar();syncDebugState();draw();scheduleSave();
 }
 async function delEntry(ri,key,ei){rooms[ri][key].splice(ei,1);await saveRoom(rooms[ri]);updSidebar();updStatus();}
 
@@ -1560,7 +1581,7 @@ async function closeRoom(ok){
   if(ok){const n=document.getElementById('m-name').value.trim(),h=parseFloat(document.getElementById('m-h').value)||2.5;
     if(n){if(editRoomIdx!==null){rooms[editRoomIdx].name=n;rooms[editRoomIdx].height=h;await saveRoom(rooms[editRoomIdx]);}
     else if(pendingPts){const rm={name:n,height:h,points:pendingPts,abzuege:[],zusaetze:[]};rooms.push(rm);await saveRoom(rm);}}}
-  editRoomIdx=null;pendingPts=null;curPts=[];updStatus();updSidebar();draw();
+  editRoomIdx=null;pendingPts=null;curPts=[];updStatus();updSidebar();syncDebugState();draw();
 }
 async function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
@@ -1585,7 +1606,7 @@ async function closeRef(ok){
       scheduleSave();
     }
   }
-  refConfirmed=(refPts.length===2 && !!scale);setTool('draw');updStatus();updSidebar();draw();
+  refConfirmed=(refPts.length===2 && !!scale);setTool('draw');updStatus();updSidebar();syncDebugState();draw();
 }
 function openEntry(ri,mode){entryTarget={roomIdx:ri,mode};document.getElementById('entry-modal-title').textContent=mode==='abzug'?'Abzug hinzufügen':'Zusatzfläche hinzufügen';document.getElementById('e-name').value=mode==='abzug'?'Tür':'Stichwand';document.getElementById('e-b').value=mode==='abzug'?'0.90':'1.00';document.getElementById('e-h').value=mode==='abzug'?'2.00':'1.20';document.getElementById('e-n').value='1';document.getElementById('e-vob').checked=false;document.getElementById('vob-row').style.display=mode==='abzug'?'flex':'none';centerModal('mw-entry');setTimeout(()=>document.getElementById('e-name').focus(),50);}
 async function closeEntry(ok){
@@ -1710,7 +1731,7 @@ function handleTap(wx,wy){
     }
     return;
   }
-  if(tool==='select'){let found=-1;rooms.forEach((rm,i)=>{if(ptInPoly(wx,wy,rm.points))found=i;});selRoom=found>=0?found:null;updStatus();updSidebar();draw();return;}
+  if(tool==='select'){let found=-1;rooms.forEach((rm,i)=>{if(ptInPoly(wx,wy,rm.points))found=i;});selRoom=found>=0?found:null;updStatus();updSidebar();syncDebugState();draw();return;}
   if(tool==='ref'){
     if(refConfirmed)return; // already confirmed, ignore taps
     if(refPts.length<2){const s=getSnap(wx,wy);refPts.push({x:s.x,y:s.y});updStatus();}
@@ -2117,7 +2138,7 @@ function initSwipeDelete(){
         rooms.splice(targetIdx,1);
         if(selRoom===targetIdx)selRoom=null;
         else if(selRoom>targetIdx)selRoom--;
-        updStatus();updSidebar();draw();
+        updStatus();updSidebar();syncDebugState();draw();
       },200);
     } else {
       target.style.transform='';target.style.background='';
