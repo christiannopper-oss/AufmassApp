@@ -338,7 +338,8 @@ let snapInfo=null,mouseW=null;
 let scale=null; // current active scale (alias)
 let scaleGrundriss=null; // scale for grundriss view
 let scaleSchnitt=null;   // scale for schnitt view
-let refLengthM=null;     // reales Referenzmaß in m (geräteunabhängig)
+let refLengthGrundrissM=null;
+let refLengthSchnittM=null;     // reales Referenzmaß in m (geräteunabhängig)
 let selRoom=null,pendingPts=null;
 let isPanning=false,lastPX=0,lastPY=0;
 let drag=null,hoverPt=null,hoverEdge=null;
@@ -396,10 +397,11 @@ function denormalizePtsForView(pts,v){
 
 function recalcScaleFromRef(view){
   const pts = view==='schnitt' ? refPtsSchnitt : refPtsGrundriss;
-  if(!refLengthM || !pts || pts.length!==2) return;
+  const refLen = (view==='schnitt') ? refLengthSchnittM : refLengthGrundrissM;
+  if(!refLen || !pts || pts.length!==2) return;
   const dx = pts[1].x - pts[0].x;
   const dy = pts[1].y - pts[0].y;
-  const localScale = Math.hypot(dx,dy) / refLengthM;
+  const localScale = Math.hypot(dx,dy) / refLen;
   if(view==='schnitt'){
     scaleSchnitt = localScale;
     if(viewMode==='schnitt') scale = localScale;
@@ -516,7 +518,8 @@ async function openFloor(id){
   refPtsGrundriss=[];
   refPtsSchnitt=[];
   schnittPts=[];
-  refLengthM=(currentFloor.ref_length_m ?? localState.refLengthM ?? null);
+  refLengthGrundrissM=(currentFloor.ref_length_grundriss_m ?? localState.refLengthGrundrissM ?? null);
+  refLengthSchnittM=(currentFloor.ref_length_schnitt_m ?? localState.refLengthSchnittM ?? null);
   scaleGrundriss=(currentFloor.scale_px_per_m ?? localState.scaleGrundriss ?? null);
   scaleSchnitt=(currentFloor.scale_schnitt ?? localState.scaleSchnitt ?? null);
   scale=scaleGrundriss;
@@ -781,7 +784,8 @@ async function saveFloorState(){
     await sb.patch('floors',{
       scale_px_per_m:scaleGrundriss,
       scale_schnitt:scaleSchnitt,
-      ref_length_m:refLengthM,
+      ref_length_grundriss_m:refLengthGrundrissM,
+      ref_length_schnitt_m:refLengthSchnittM,
       ref_points:normRefGrundriss,
       ref_pts_grundriss:normRefGrundriss,
       ref_pts_schnitt:normRefSchnitt,
@@ -1594,7 +1598,11 @@ async function closeRef(ok){
   if(ok){
     const rl=parseFloat(document.getElementById('r-len').value);
     if(rl>0 && refPts.length===2){
-      refLengthM = rl;
+      if(viewMode==='schnitt'){
+        refLengthSchnittM = rl;
+      } else {
+        refLengthGrundrissM = rl;
+      }
       const dx=refPts[1].x-refPts[0].x,dy=refPts[1].y-refPts[0].y;
       scale=Math.hypot(dx,dy)/rl;
       if(viewMode==='schnitt'){
