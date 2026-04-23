@@ -349,7 +349,8 @@ let refConfirmed=false;
 let refPtsGrundriss=[]; // persistent ref pts for grundriss
 let refPtsSchnitt=[];   // persistent ref pts for schnitt
 let spaceDown=false;
-let imgRotation=0;
+let imgRotationGrundriss=0;
+let imgRotationSchnitt=0;
 // Multi-page PDF
 let pdfDoc=null; // loaded pdfjs document
 let totalPages=0;
@@ -363,6 +364,8 @@ let schnittPts=[];
 let schnittDrawMode=false;
 let schnittClosed=false;
 let viewMode='grundriss';
+function getCurrentRotation(){return viewMode==='schnitt'?imgRotationSchnitt:imgRotationGrundriss;}
+function setCurrentRotation(v){if(viewMode==='schnitt')imgRotationSchnitt=v;else imgRotationGrundriss=v;}
 let schnittResult=null;
 let traufKanten=[];
 
@@ -444,7 +447,9 @@ async function openFloor(id){
   window.currentDachConfig=currentFloor.dach_config||null;
   window.currentDefaultHeight=currentFloor.default_height||2.5;
   // restore schnitt
-  schnittPts=(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||[];
+  schnittPts=currentFloor.schnitt_pts||(currentFloor.dach_config&&currentFloor.dach_config.schnittPts)||[];
+  imgRotationGrundriss=currentFloor.img_rotation||0;
+  imgRotationSchnitt=currentFloor.schnitt_rotation||0;
   schnittResult=null;
   schnittImg=null;schnittX=0;schnittY=0;schnittW=0;schnittH=0;
   traufKanten=[];
@@ -486,7 +491,7 @@ async function openFloor(id){
     updStatus();
     updSidebar();
     draw();
-  },80);
+  },120);
 }
 
 async function deleteFloor(id){
@@ -695,7 +700,21 @@ function scheduleSave(){
 async function saveFloorState(){
   if(!currentFloor)return;
   try{
-    await sb.patch('floors',{scale_px_per_m:scaleGrundriss,scale_schnitt:scaleSchnitt,ref_points:refPtsGrundriss,ref_pts_schnitt:refPtsSchnitt},'?id=eq.'+currentFloor.id);
+    await sb.patch('floors',{
+      scale_px_per_m:scaleGrundriss,
+      scale_schnitt:scaleSchnitt,
+      ref_points:refPtsGrundriss,
+      ref_pts_grundriss:refPtsGrundriss,
+      ref_pts_schnitt:refPtsSchnitt,
+      img_rotation:imgRotationGrundriss,
+      schnitt_rotation:imgRotationSchnitt,
+      schnitt_pts:schnittPts
+    },'?id=eq.'+currentFloor.id);
+    currentFloor.ref_pts_grundriss=refPtsGrundriss;
+    currentFloor.ref_pts_schnitt=refPtsSchnitt;
+    currentFloor.img_rotation=imgRotationGrundriss;
+    currentFloor.schnitt_rotation=imgRotationSchnitt;
+    currentFloor.schnitt_pts=schnittPts;
     showSaveIndicator();
   }catch(e){console.error('Save error',e);}
 }
@@ -713,6 +732,7 @@ async function deleteRoomFromDB(id){
 }
 async function savePlanSnapshot(dataUrl,isSchnitt=false,pageNum=1){
   if(!currentFloor||!dataUrl)return;
+  setPlanCache(dataUrl,isSchnitt,pageNum);
   try{
     if(isSchnitt){
       await sb.patch('floors',{schnitt_plan_data:dataUrl,schnitt_page:pageNum},'?id=eq.'+currentFloor.id);
@@ -726,8 +746,43 @@ async function savePlanSnapshot(dataUrl,isSchnitt=false,pageNum=1){
     showSaveIndicator();
   }catch(e){
     console.error('Plan save error',e);
+    // local cache remains as fallback
   }
 }
+
+function getPlanCacheKey(isSchnitt=false){
+  if(!currentFloor||!currentFloor.id)return null;
+  return 'aufmass-plan-'+currentFloor.id+'-'+(isSchnitt?'schnitt':'grundriss');
+}
+function setPlanCache(dataUrl,isSchnitt=false,pageNum=1){
+  try{
+    const key=getPlanCacheKey(isSchnitt);
+    if(!key||!dataUrl)return;
+    localStorage.setItem(key, JSON.stringify({dataUrl, pageNum, savedAt: Date.now()}));
+  }catch(e){
+    console.warn('Local plan cache write failed', e);
+  }
+}
+function getPlanCache(isSchnitt=false){
+  try{
+    const key=getPlanCacheKey(isSchnitt);
+    if(!key)return null;
+    const raw=localStorage.getItem(key);
+    return raw?JSON.parse(raw):null;
+  }catch(e){
+    console.warn('Local plan cache read failed', e);
+    return null;
+  }
+}
+function clearPlanCache(isSchnitt=false){
+  try{
+    const key=getPlanCacheKey(isSchnitt);
+    if(key)localStorage.removeItem(key);
+  }catch(e){
+    console.warn('Local plan cache clear failed', e);
+  }
+}
+
 function showSaveIndicator(){
   const el=document.getElementById('save-ind');el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),2000);
@@ -1635,21 +1690,35 @@ async function restoreSavedPlans(){
   const r=wrap.getBoundingClientRect();
   if(!r.width || !r.height)return;
 
-  if(currentFloor.plan_data){
+  const grundrissSource = currentFloor.plan_data || (getPlanCache(false)?.dataUrl || null);
+  const grundrissPageSaved = currentFloor.grundriss_page || (getPlanCache(false)?.pageNum || 1);
+  if(grundrissSource){
     const i=new Image();
-    await new Promise(res=>{i.onload=res;i.src=currentFloor.plan_data;});
-    const ratio=Math.min((r.width-40)/i.width,(r.height-40)/i.height);
-    img=i;imgW=i.width*ratio;imgH=i.height*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
+    await new Promise(res=>{i.onload=res;i.src=grundrissSource;});
+    img=i;
+    const rot=imgRotationGrundriss||0;
+    const odd=rot===90||rot===270;
+    const srcW=odd?i.height:i.width, srcH=odd?i.width:i.height;
+    const ratio=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
+    imgW=srcW*ratio;imgH=srcH*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
     zoom=1;panX=0;panY=0;
+    grundrissPage=grundrissPageSaved||1;
     const dh=document.getElementById('drop-hint');
     if(dh)dh.style.display='none';
   }
 
-  if(currentFloor.schnitt_plan_data){
+  const schnittSource = currentFloor.schnitt_plan_data || (getPlanCache(true)?.dataUrl || null);
+  const schnittPageSaved = currentFloor.schnitt_page || (getPlanCache(true)?.pageNum || 1);
+  if(schnittSource){
     const si=new Image();
-    await new Promise(res=>{si.onload=res;si.src=currentFloor.schnitt_plan_data;});
-    const ratio=Math.min((r.width-40)/si.width,(r.height-40)/si.height);
-    schnittImg=si;schnittW=si.width*ratio;schnittH=si.height*ratio;schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
+    await new Promise(res=>{si.onload=res;si.src=schnittSource;});
+    schnittImg=si;
+    const rot2=imgRotationSchnitt||0;
+    const odd2=rot2===90||rot2===270;
+    const srcW2=odd2?si.height:si.width, srcH2=odd2?si.width:si.height;
+    const ratio2=Math.min((r.width-40)/srcW2,(r.height-40)/srcH2);
+    schnittW=srcW2*ratio2;schnittH=srcH2*ratio2;schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
+    schnittPage=schnittPageSaved||1;
   }
 }
 
@@ -1660,13 +1729,16 @@ async function showPage(pageNum,isSchnitt=false){
   const i=new Image();
   await new Promise(res=>{i.onload=res;i.src=dataUrl;});
   const r=wrap.getBoundingClientRect();
-  const ratio=Math.min((r.width-40)/i.width,(r.height-40)/i.height);
+  const rot=isSchnitt?imgRotationSchnitt:imgRotationGrundriss;
+  const odd=rot===90||rot===270;
+  const srcW=odd?i.height:i.width, srcH=odd?i.width:i.height;
+  const ratio=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
   if(isSchnitt){
-    schnittImg=i;schnittW=i.width*ratio;schnittH=i.height*ratio;
+    schnittImg=i;schnittW=srcW*ratio;schnittH=srcH*ratio;
     schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
     await savePlanSnapshot(dataUrl,true,pageNum);
   } else {
-    img=i;imgW=i.width*ratio;imgH=i.height*ratio;
+    img=i;imgW=srcW*ratio;imgH=srcH*ratio;
     imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
     zoom=1;panX=0;panY=0;
     document.getElementById('drop-hint').style.display='none';
@@ -1722,11 +1794,21 @@ async function loadPDF(file){
         const r=wrap.getBoundingClientRect();
         const ratio=Math.min((r.width-40)/i.width,(r.height-40)/i.height);
         if(viewMode==='schnitt'){
-          schnittImg=i;schnittW=i.width*ratio;schnittH=i.height*ratio;
+          schnittImg=i;
+          const rot=getCurrentRotation();
+          const odd=rot===90||rot===270;
+          const srcW=odd?i.height:i.width, srcH=odd?i.width:i.height;
+          const ratioRot=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
+          schnittW=srcW*ratioRot;schnittH=srcH*ratioRot;
           schnittX=(r.width-schnittW)/2;schnittY=(r.height-schnittH)/2;
           await savePlanSnapshot(e.target.result,true,1);
         } else {
-          img=i;imgW=i.width*ratio;imgH=i.height*ratio;
+          img=i;
+          const rot=getCurrentRotation();
+          const odd=rot===90||rot===270;
+          const srcW=odd?i.height:i.width, srcH=odd?i.width:i.height;
+          const ratioRot=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
+          imgW=srcW*ratioRot;imgH=srcH*ratioRot;
           imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
           zoom=1;panX=0;panY=0;
           document.getElementById('drop-hint').style.display='none';
@@ -1794,7 +1876,7 @@ function schnittUndo(){
   if(schnittPts.length===0)schnittDrawMode=false;
   document.getElementById('btn-schnitt-confirm').style.display=schnittPts.length>=5?'':'none';
   document.getElementById('btn-schnitt-draw').style.display=!schnittDrawMode?'':'none';
-  draw();updStatus();
+  draw();updStatus();scheduleSave();
 }
 
 function confirmSchnitt(){
@@ -1833,11 +1915,12 @@ function rotatePlan(){
   if(viewMode==='grundriss'&&rooms.length>0){
     alert('Bitte zuerst alle Räume löschen bevor der Plan gedreht wird – sonst stimmen die Koordinaten nicht mehr.');return;
   }
-  imgRotation=(imgRotation+90)%360;
+  const newRot=(getCurrentRotation()+90)%360;
+  setCurrentRotation(newRot);
   const activeImg=viewMode==='schnitt'?schnittImg:img;
   if(!activeImg)return;
   const r=wrap.getBoundingClientRect();
-  const odd=imgRotation===90||imgRotation===270;
+  const odd=newRot===90||newRot===270;
   const srcW=odd?activeImg.height:activeImg.width, srcH=odd?activeImg.width:activeImg.height;
   const ratio=Math.min((r.width-40)/srcW,(r.height-40)/srcH);
   if(viewMode==='schnitt'){
@@ -1846,6 +1929,7 @@ function rotatePlan(){
   } else {
     imgW=srcW*ratio;imgH=srcH*ratio;imgX=(r.width-imgW)/2;imgY=(r.height-imgH)/2;
   }
+  scheduleSave();
   draw();
 }
 
