@@ -155,6 +155,10 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 .overlay-modal label{display:block;font-size:10px;color:var(--txt3);letter-spacing:1.2px;font-weight:600;margin-bottom:5px;font-family:'DM Mono',monospace;text-transform:uppercase}
 .overlay-modal input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--txt);background:var(--bg);margin-bottom:13px;outline:none;transition:border-color .15s}
 .overlay-modal input:focus{border-color:var(--gold)}
+.exp-check-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--txt2);transition:background .1s}
+.exp-check-row:hover{background:var(--bg3)}
+.exp-check-row input[type=checkbox]{accent-color:var(--gold);width:auto;margin:0;flex-shrink:0}
+.exp-check-row span{flex:1}
 .save-indicator{position:fixed;bottom:20px;right:20px;background:rgba(26,138,68,.1);border:1px solid rgba(26,138,68,.4);color:var(--green);padding:6px 14px;border-radius:var(--radius);font-size:10px;font-family:'DM Mono',monospace;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 .save-indicator.show{opacity:1}
 </style>
@@ -220,8 +224,8 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
       <div class="tb-sep"></div>
       <span class="tb-label">Raum</span>
       <div class="tb-group">
-        <button class="tbtn" id="btn-select" onclick="setTool('select')">Raum anpassen</button>
         <button class="tbtn" id="btn-add-room" onclick="activateDraw()">＋ Raum zeichnen</button>
+        <button class="tbtn" id="btn-select" onclick="setTool('select')">Raum anpassen</button>
         <span id="btn-draw-active" style="display:none">✦ Zeichnen aktiv</span>
         <button class="tbtn" id="btn-undo" style="display:none" onclick="undoPoint()">↩ Punkt löschen</button>
         <button class="tbtn confirm" id="btn-close" style="display:none" onclick="openRoomModal()">✓ Raum speichern</button>
@@ -299,11 +303,24 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 
       <!-- export modal -->
       <div class="mwrap" id="mw-export" style="display:none;left:40px;top:60px">
-        <div class="modal"><div class="mdrag" id="md-export"><span class="mtitle">PDF Export</span><span style="font-size:9px;color:#555">ZIEHEN</span></div>
+        <div class="modal" style="min-width:340px"><div class="mdrag" id="md-export"><span class="mtitle">PDF Export</span><span style="font-size:9px;color:var(--txt3)">ZIEHEN</span></div>
         <div class="mbody">
           <label>PROJEKTBEZEICHNUNG</label><input id="exp-project" placeholder="z.B. EFH Musterstraße 1">
-          <label>AUFTRAGGEBER (optional)</label><input id="exp-client" placeholder="z.B. Familie Müller">
-          <label>ERSTELLT VON (optional)</label><input id="exp-author" placeholder="z.B. Malerbetrieb Schmidt">
+          <div class="row2">
+            <div><label>AUFTRAGGEBER</label><input id="exp-client" placeholder="optional"></div>
+            <div><label>ERSTELLT VON</label><input id="exp-author" placeholder="optional"></div>
+          </div>
+          <label style="margin-bottom:8px">AUSGABE-WERTE</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px">
+            <label class="exp-check-row"><input type="checkbox" id="exp-grundflaeche" checked><span>Grundfläche</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-decke" checked><span>Deckenfläche</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-wand-brutto" checked><span>Wand brutto</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-wand-netto" checked><span>Wand netto</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-abzuege" checked><span>Abzüge / Zusätze</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-laufmeter" checked><span>Laufende Meter</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-raumhoehe" checked><span>Raumhöhe</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-dach"><span>Dach-Detailwerte</span></label>
+          </div>
           <div class="mbtns">
             <button class="bcl" onclick="closeExport(false)">Abbrechen</button>
             <button class="bok bok-green" onclick="closeExport(true)">↓ PDF erstellen</button>
@@ -598,6 +615,10 @@ async function openFloor(id){
   showScreen('app');
   // Wait until the canvas has real dimensions before denormalizing points.
   // Poll with rAF instead of a fixed timeout – safe on slow devices and large PDFs.
+  // Lock toolbar immediately while plan is loading
+  ['btn-ref','btn-ref-reset','btn-select','btn-add-room'].forEach(id=>{
+    const b=document.getElementById(id);if(b)b.classList.add('tb-locked');
+  });
   await new Promise(resolve=>{
     const check=()=>{
       const r=wrap.getBoundingClientRect();
@@ -1722,9 +1743,28 @@ async function closeEntry(ok){
 
 // ── EXPORT ─────────────────────────────────────────────────
 function openExportModal(){centerModal('mw-export');setTimeout(()=>document.getElementById('exp-project').focus(),50);}
-function closeExport(ok){document.getElementById('mw-export').style.display='none';if(!ok)return;generatePDF(document.getElementById('exp-project').value.trim()||'Aufmaß',document.getElementById('exp-client').value.trim(),document.getElementById('exp-author').value.trim());}
+function closeExport(ok){
+  document.getElementById('mw-export').style.display='none';
+  if(!ok)return;
+  const opts={
+    grundflaeche: document.getElementById('exp-grundflaeche')?.checked!==false,
+    decke:        document.getElementById('exp-decke')?.checked!==false,
+    wandBrutto:   document.getElementById('exp-wand-brutto')?.checked!==false,
+    wandNetto:    document.getElementById('exp-wand-netto')?.checked!==false,
+    abzuege:      document.getElementById('exp-abzuege')?.checked!==false,
+    laufmeter:    document.getElementById('exp-laufmeter')?.checked!==false,
+    raumhoehe:    document.getElementById('exp-raumhoehe')?.checked!==false,
+    dach:         document.getElementById('exp-dach')?.checked===true,
+  };
+  generatePDF(
+    document.getElementById('exp-project').value.trim()||'Aufmaß',
+    document.getElementById('exp-client').value.trim(),
+    document.getElementById('exp-author').value.trim(),
+    opts
+  );
+}
 
-function generatePDF(project,client,author){
+function generatePDF(project,client,author,opts={}){
   const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const W=210,H=297,ML=15,MR=15,MT=15,CW=210-15-15;let y=MT;
   doc.setFillColor(22,22,22);doc.rect(0,0,W,32,'F');
@@ -1736,7 +1776,19 @@ function generatePDF(project,client,author){
   // floor label
   if(currentFloor){doc.setFontSize(8);doc.setTextColor(120,110,90);doc.text('Geschoss: '+currentFloor.name,ML,y+31);}
   y=38;
-  function tableHeader(){doc.setFillColor(35,35,35);doc.rect(ML,y,CW,7,'F');doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(200,169,110);const cols=[ML+2,ML+60,ML+95,ML+120,ML+145,ML+170];['Position','Grundfl.','Decke','Wand brutto','Abzüge/Zus.','Wand netto'].forEach((l,i)=>doc.text(l,cols[i],y+5));y+=8;}
+  // Column positions depend on selected outputs
+  const colX={pos:ML+2,grundfl:ML+60,decke:ML+95,wandG:ML+120,delta:ML+145,wandN:ML+170};
+  function tableHeader(){
+    doc.setFillColor(35,35,35);doc.rect(ML,y,CW,7,'F');
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(200,169,110);
+    doc.text('Position',colX.pos,y+5);
+    if(opts.grundflaeche!==false)doc.text('Grundfl.',colX.grundfl,y+5);
+    if(opts.decke!==false)doc.text('Decke',colX.decke,y+5);
+    if(opts.wandBrutto!==false)doc.text('Wand brutto',colX.wandG,y+5);
+    if(opts.abzuege!==false)doc.text('Abzüge/Zus.',colX.delta,y+5);
+    if(opts.wandNetto!==false)doc.text('Wand netto',colX.wandN,y+5);
+    y+=8;
+  }
   function checkPage(need=12){if(y+need>H-20){doc.addPage();y=MT;tableHeader();}}
   tableHeader();
   let totalWG=0,totalWN=0,totalCeil=0,totalCeilFlat=0,totalSlope=0;
@@ -1745,12 +1797,20 @@ function generatePDF(project,client,author){
     const rowColor=idx%2===0?[248,246,242]:[255,255,255];doc.setFillColor(...rowColor);doc.rect(ML,y,CW,10,'F');
     doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(30,30,30);doc.text((idx+1)+'. '+rm.name,ML+2,y+6.5);
     doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);
-    if(a!==null){const deckeVal=getCeilingStatsForRoom(rm).deckeGesamt;doc.text(a.toFixed(2)+' m²',ML+60,y+6.5);doc.text(deckeVal.toFixed(2)+' m²',ML+95,y+6.5);doc.text(wG.toFixed(2)+' m²',ML+120,y+6.5);const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',ML+145,y+6.5);}doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',ML+170,y+6.5);}else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',ML+60,y+6.5);}
+    if(a!==null){
+      const deckeVal=getCeilingStatsForRoom(rm).deckeGesamt;
+      doc.setFont('helvetica','normal');doc.setTextColor(50,50,50);
+      if(opts.grundflaeche!==false)doc.text(a.toFixed(2)+' m²',colX.grundfl,y+6.5);
+      if(opts.decke!==false)doc.text(deckeVal.toFixed(2)+' m²',colX.decke,y+6.5);
+      if(opts.wandBrutto!==false)doc.text(wG.toFixed(2)+' m²',colX.wandG,y+6.5);
+      if(opts.abzuege!==false){const delta=zusSum-abzSum;if(delta!==0){doc.setTextColor(delta<0?180:80,delta<0?50:140,delta<0?50:80);doc.text((delta>0?'+':'')+delta.toFixed(2)+' m²',colX.delta,y+6.5);doc.setTextColor(50,50,50);}}
+      if(opts.wandNetto!==false){doc.setFont('helvetica','bold');doc.setTextColor(23,99,177);doc.text(wN.toFixed(2)+' m²',colX.wandN,y+6.5);}
+    }else{doc.setTextColor(160,160,160);doc.text('Kalibrierung fehlt',colX.grundfl,y+6.5);}
     doc.setDrawColor(220,218,212);doc.line(ML,y+10,ML+CW,y+10);y+=11;
-    checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(130,120,100);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.text('  Raumhöhe: '+rm.height.toFixed(2)+' m',ML+2,y+4);y+=6;
-    if(dachStats){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+dachStats.deckeFlach.toFixed(2)+' m² · Schräge: '+dachStats.schraegeFlaeche.toFixed(2)+' m² · Decke gesamt: '+dachStats.deckeGesamt.toFixed(2)+' m²',ML+2,y+4);y+=6;}
-    (rm.abzuege||[]).forEach(e=>{checkPage(6);const eff=calcAbzug(e);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(160,60,60);doc.text('  − '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n+(e.vob?' (VOB)':'')+(eff===0?' → nicht abgezogen':''),ML+2,y+4);if(eff>0)doc.text('-'+eff.toFixed(2)+' m²',ML+145,y+4);y+=6;});
-    (rm.zusaetze||[]).forEach(e=>{checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(40,120,80);doc.text('  + '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n,ML+2,y+4);doc.text('+'+calcZusatz(e).toFixed(2)+' m²',ML+145,y+4);y+=6;});
+    if(opts.raumhoehe!==false){checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(130,120,100);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.text('  Raumhöhe: '+rm.height.toFixed(2)+' m',ML+2,y+4);y+=6;}
+    if(dachStats&&opts.dach){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+dachStats.deckeFlach.toFixed(2)+' m² · Schräge: '+dachStats.schraegeFlaeche.toFixed(2)+' m² · Decke gesamt: '+dachStats.deckeGesamt.toFixed(2)+' m²',ML+2,y+4);y+=6;}
+    if(opts.abzuege!==false)(rm.abzuege||[]).forEach(e=>{checkPage(6);const eff=calcAbzug(e);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(160,60,60);doc.text('  − '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n+(e.vob?' (VOB)':'')+(eff===0?' → nicht abgezogen':''),ML+2,y+4);if(eff>0)doc.text('-'+eff.toFixed(2)+' m²',colX.delta,y+4);y+=6;});
+    if(opts.abzuege!==false)(rm.zusaetze||[]).forEach(e=>{checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(40,120,80);doc.text('  + '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n,ML+2,y+4);doc.text('+'+calcZusatz(e).toFixed(2)+' m²',colX.delta,y+4);y+=6;});
     y+=2;if(a!==null){totalWG+=wG;totalWN+=wN;if(dachStats){totalCeil+=dachStats.deckeGesamt;totalCeilFlat+=dachStats.deckeFlach;totalSlope+=dachStats.schraegeFlaeche;}else{totalCeil+=a;}}
   });
   checkPage(22);y+=4;
@@ -2096,7 +2156,7 @@ async function loadPDF(file){
           document.getElementById('drop-hint').style.display='none';
           await savePlanSnapshot(e.target.result,false,1);
         }
-        updPageNav();draw();
+        updPageNav();draw();updToolbarLockState();
       };
       reader.readAsDataURL(file);
     }
