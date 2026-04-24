@@ -294,7 +294,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
             <div><label>HÖHE (m)</label><input id="e-h" type="number" value="2.00" step="0.01" min="0.01"></div>
           </div>
           <div class="row2"><div><label>ANZAHL</label><input id="e-n" type="number" value="1" step="1" min="1"></div><div></div></div>
-          <label class="vob-row" id="vob-row" onclick="toggleVob(event)">
+          <label class="vob-row" id="vob-row" for="e-vob">
             <input type="checkbox" id="e-vob"><span>VOB: unter 2,5 m² nicht abziehen</span>
           </label>
           <div class="mbtns"><button class="bcl" onclick="closeEntry(false)">Abbrechen</button><button class="bok" onclick="closeEntry(true)">Hinzufügen</button></div>
@@ -814,10 +814,10 @@ function openOverlay(mode){
     title.textContent='Neues Geschoss';
     body.innerHTML=`
       <label>BEZEICHNUNG *</label><input id="ov-name" placeholder="z.B. Erdgeschoss, Dachgeschoss">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked;document.getElementById('ov-height-row').style.display=cb.checked?'none':'';">
-        <input type="checkbox" id="ov-dach" onclick="event.stopPropagation();document.getElementById('ov-height-row').style.display=this.checked?'none':'';" style="width:auto;margin:0;accent-color:var(--gold)">
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" for="ov-dach">
+        <input type="checkbox" id="ov-dach" onchange="document.getElementById('ov-height-row').style.display=this.checked?'none':'';" style="width:auto;margin:0;accent-color:var(--gold)">
         <span style="font-size:11px;color:var(--txt2)">Dieses Geschoss hat Dachschrägen</span>
-      </div>
+      </label>
       <div id="ov-height-row">
         <label>STANDARD-RAUMHÖHE (m)</label><input id="ov-height" type="number" value="2.50" step="0.01" min="1" max="10" placeholder="2.50">
       </div>`;
@@ -1334,7 +1334,7 @@ function draw(){
       ctx.font=`${10/zoom}px monospace`;ctx.fillStyle='#1D9E75';ctx.textAlign='center';ctx.fillText(i+1,p.x,p.y-9/zoom);
     });
     if(refPts.length===2){ctx.beginPath();ctx.moveTo(refPts[0].x,refPts[0].y);ctx.lineTo(refPts[1].x,refPts[1].y);ctx.strokeStyle='#1D9E75';ctx.lineWidth=2/zoom;ctx.setLineDash([5/zoom,3/zoom]);ctx.stroke();ctx.setLineDash([]);}
-    if((tool==='ref') && mouseW){
+    if(tool==='ref' && !refConfirmed && mouseW){
       const cp=snapInfo||mouseW;
       ctx.beginPath();
       ctx.moveTo(cp.x-10/zoom,cp.y); ctx.lineTo(cp.x+10/zoom,cp.y);
@@ -1429,7 +1429,7 @@ function draw(){
       }
     }
   }
-  if((tool==='ref') && mouseW){
+  if(tool==='ref' && !refConfirmed && mouseW){
     const cp=snapInfo||mouseW;
     ctx.beginPath();
     ctx.moveTo(cp.x-10/zoom,cp.y); ctx.lineTo(cp.x+10/zoom,cp.y);
@@ -1845,7 +1845,6 @@ function toggleDachOv(){
   const cb=document.getElementById('ov-dach');
   if(cb){cb.checked=!cb.checked;document.getElementById('ov-dach-fields').style.display=cb.checked?'block':'none';}
 }
-function toggleVob(e){e.preventDefault();const cb=document.getElementById('e-vob');cb.checked=!cb.checked;}
 ['m-name','m-h'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('m-name').value.trim())closeRoom(true);}));
 document.getElementById('r-len').addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('r-len').value)closeRef(true);});
 ['e-name','e-b','e-h','e-n'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')closeEntry(true);}));
