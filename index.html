@@ -3,131 +3,159 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Aufmaß v21 Bugfix Decke</title>
+<title>Aufmaß</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+:root{
+  --gold:#b8914a;--gold-lt:#c8a96e;--gold-bg:rgba(184,145,74,.10);--gold-bg2:rgba(184,145,74,.18);
+  --bg:#f4f2ee;--bg2:#ffffff;--bg3:#edeae4;
+  --txt:#1a1a1a;--txt2:#5a5550;--txt3:#9a9590;
+  --border:#dedad4;--border2:#ccc9c3;
+  --red:#c0392b;--green:#1a8a44;--blue:#2a7ab8;--orange:#d4640a;
+  --sidebar-bg:#fafaf8;--sidebar-border:#e8e4de;
+  --toolbar-bg:#ffffff;--toolbar-border:#e0dcd6;
+  --radius:6px;--radius-lg:10px;
+  --shadow:0 2px 12px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.14);
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:ui-monospace,monospace;background:#f5f5f0;color:#1a1a1a;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);height:100vh;overflow:hidden;display:flex;flex-direction:column;font-size:13px}
 
 /* ── Project Screen ── */
-#project-screen{display:flex;flex-direction:column;height:100vh;background:#111}
-#project-header{padding:16px 20px;background:#ffffff;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-#project-header .brand{font-weight:600;font-size:16px;color:#8a5f00;letter-spacing:1px}
-.btn-new{padding:6px 14px;background:#c8a96e;border:none;border-radius:5px;color:#111;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px}
-.btn-new:hover{background:#d4b87e}
-#project-list{flex:1;overflow-y:auto;padding:16px}
-.project-card{background:#ffffff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
-.project-card:hover{border-color:#c8a96e}
-.project-card-name{font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:4px}
-.project-card-meta{font-size:10px;color:#888}
-.empty-state{text-align:center;padding:60px 20px;color:#999;font-size:12px;line-height:2.2}
+#project-screen{display:flex;flex-direction:column;height:100vh;background:var(--bg)}
+#project-header{padding:16px 24px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:var(--shadow)}
+#project-header .brand{font-weight:700;font-size:17px;color:var(--gold);letter-spacing:.3px}
+#project-header .brand small{font-weight:400;color:var(--txt3);font-size:11px;margin-left:8px;letter-spacing:.5px}
+.btn-new{padding:7px 16px;background:var(--gold);border:none;border-radius:var(--radius);color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.2px;transition:background .15s}
+.btn-new:hover{background:var(--gold-lt)}
+#project-list{flex:1;overflow-y:auto;padding:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;align-content:start}
+.project-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .1s;display:flex;flex-direction:column;gap:6px}
+.project-card:hover{border-color:var(--gold-lt);box-shadow:var(--shadow);transform:translateY(-1px)}
+.project-card-name{font-weight:600;font-size:14px;color:var(--txt)}
+.project-card-client{font-size:12px;color:var(--txt2)}
+.project-card-dates{font-size:10px;color:var(--txt3);margin-top:4px;font-family:'DM Mono',monospace;line-height:1.8}
+.project-card-badge{display:inline-flex;align-items:center;font-size:10px;color:var(--gold);background:var(--gold-bg);border:1px solid rgba(184,145,74,.2);border-radius:20px;padding:2px 8px;align-self:flex-start;margin-top:2px}
+.empty-state{text-align:center;padding:60px 20px;color:var(--txt3);font-size:13px;line-height:2.4;grid-column:1/-1}
 
 /* ── Floor Screen ── */
 #floor-screen{display:none;flex-direction:column;height:100%;height:100dvh;min-height:0;position:relative}
-#floor-header{padding:10px 14px;background:#ffffff;border-bottom:1px solid #ddd;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.back-btn{padding:4px 10px;border:1px solid #ccc;border-radius:5px;background:transparent;cursor:pointer;font-family:inherit;font-size:11px;color:#888}
-.back-btn:hover{color:#1a1a1a;border-color:#555}
-.floor-project-name{font-weight:600;font-size:13px;color:#8a5f00;flex:1}
-#floor-list{flex:1;overflow-y:auto;padding:16px;min-height:0;padding-bottom:80px}
-.floor-card{background:#ffffff;border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:border-color .15s}
-.floor-card:hover{border-color:#6eb5c8}
-.floor-card-name{font-weight:600;font-size:13px;color:#1a1a1a}
-.floor-card-meta{font-size:10px;color:#888;margin-top:2px}
+#floor-header{padding:12px 20px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;box-shadow:var(--shadow)}
+.back-btn{padding:5px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:transparent;cursor:pointer;font-family:inherit;font-size:12px;color:var(--txt2);transition:all .15s}
+.back-btn:hover{color:var(--txt);border-color:#999;background:var(--bg3)}
+.floor-project-name{font-weight:600;font-size:14px;color:var(--gold);flex:1}
+#floor-list{flex:1;overflow-y:auto;padding:20px;min-height:0;padding-bottom:80px}
+.floor-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.floor-card:hover{border-color:var(--gold-lt);box-shadow:var(--shadow)}
+.floor-card-name{font-weight:600;font-size:13px;color:var(--txt)}
+.floor-card-meta{font-size:11px;color:var(--txt2);margin-top:3px}
 .floor-card-right{display:flex;align-items:center;gap:8px}
-.floor-del{font-size:11px;color:#c0392b;padding:4px 8px;border:1px solid #c0392b33;border-radius:4px;cursor:pointer}
-.floor-del:hover{background:#c0392b11}
-#floor-bottom{padding:12px 16px;border-top:1px solid #e0ddd8;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.floor-del{font-size:11px;color:var(--red);padding:4px 8px;border:1px solid rgba(192,57,43,.25);border-radius:var(--radius);cursor:pointer;transition:background .15s}
+.floor-del:hover{background:rgba(192,57,43,.08)}
+#floor-bottom{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;background:var(--bg2)}
 
-/* ── App Screen (canvas) ── */
+/* ── App Screen ── */
 #app-screen{display:none;flex-direction:column;height:100vh}
-#toolbar{display:flex;align-items:center;gap:6px;padding:7px 12px;border-bottom:1px solid #ddd;background:#ffffff;flex-shrink:0;flex-wrap:wrap}
-.brand{font-weight:600;font-size:13px;color:#8a5f00;letter-spacing:1px}
-.floor-label{font-size:11px;color:#555;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sep{color:#333;font-size:16px}
-.tbtn{padding:4px 10px;border:1px solid #ccc;border-radius:5px;background:transparent;cursor:pointer;font-family:inherit;font-size:11px;color:#555;white-space:nowrap}
-.tbtn.active{background:#c8a96e33;border-color:#b8914a;color:#8a5f00;font-weight:600}
-.tbtn:hover:not(.active){background:#efefeb;color:#ccc}
-.tbtn.danger{border-color:#c0392b55;color:#c0392b}
-.tbtn.danger:hover{background:#c0392b11}
-.tbtn.warn{border-color:#e67e2255;color:#e67e22}
-.tbtn.warn:hover{background:#e67e2211}
-.tbtn.export{border-color:#27ae6055;color:#27ae60;font-weight:600}
-.tbtn.export:hover{background:#27ae6011}
-.tbtn.confirm{border-color:#27ae6055;color:#27ae60;font-weight:600;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+#toolbar{background:var(--toolbar-bg);border-bottom:1px solid var(--toolbar-border);flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.tb-row{display:flex;align-items:center;gap:4px;padding:5px 12px;flex-wrap:nowrap;min-height:36px}
+.tb-row+.tb-row{border-top:1px solid var(--toolbar-border);background:#fafaf8}
+.tb-sep{width:1px;height:18px;background:var(--border);flex-shrink:0;margin:0 2px}
+.floor-label{font-size:12px;color:var(--txt2);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.brand-sm{font-weight:700;font-size:14px;color:var(--gold);white-space:nowrap}
+.tb-group{display:flex;align-items:center;gap:3px}
+.tb-label{font-size:9px;color:var(--txt3);letter-spacing:.8px;font-weight:600;white-space:nowrap;padding:0 4px;font-family:'DM Mono',monospace;text-transform:uppercase}
+
+.tbtn{padding:4px 10px;border:1px solid var(--border2);border-radius:var(--radius);background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;color:var(--txt2);white-space:nowrap;transition:all .12s;line-height:1.5}
+.tbtn:hover:not(.active):not(:disabled){background:var(--bg3);border-color:#aaa;color:var(--txt)}
+.tbtn.active{background:var(--gold-bg2);border-color:var(--gold);color:var(--gold);font-weight:600}
+.tbtn.danger{border-color:rgba(192,57,43,.35);color:var(--red)}
+.tbtn.danger:hover:not(:disabled){background:rgba(192,57,43,.07)}
+.tbtn.warn{border-color:rgba(212,100,10,.35);color:var(--orange)}
+.tbtn.warn:hover:not(:disabled){background:rgba(212,100,10,.07)}
+.tbtn.export{border-color:rgba(26,138,68,.4);color:var(--green);font-weight:600;background:rgba(26,138,68,.05)}
+.tbtn.export:hover:not(:disabled){background:rgba(26,138,68,.12)}
+.tbtn.confirm{border-color:rgba(26,138,68,.5);color:var(--green);font-weight:600;animation:pulse 1.2s infinite}
+.tbtn.primary{background:var(--gold);border-color:var(--gold);color:#fff;font-weight:600}
+.tbtn.primary:hover:not(:disabled){background:var(--gold-lt)}
+.tbtn:disabled,.tbtn.tb-locked{opacity:.32;cursor:not-allowed;pointer-events:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
 .spacer{flex:1}
-#statusbar{padding:3px 14px;background:#f0ede8;border-bottom:1px solid #e8e5e0;font-size:10px;color:#888;display:flex;gap:16px;flex-shrink:0;letter-spacing:.8px;flex-wrap:wrap}
-.ok{color:#1a8a44}.warn-c{color:#e67e22}
+#btn-draw-active{padding:4px 10px;background:var(--gold-bg2);border:1px solid var(--gold);border-radius:var(--radius);font-size:11px;color:var(--gold);font-weight:600;white-space:nowrap;font-family:'DM Sans',sans-serif}
+
+#statusbar{padding:3px 14px;background:#f2efe9;border-bottom:1px solid var(--border);font-size:10px;color:var(--txt3);display:flex;gap:16px;flex-shrink:0;letter-spacing:.4px;flex-wrap:wrap;font-family:'DM Mono',monospace}
+.ok{color:var(--green)}.warn-c{color:var(--orange)}
 #main{display:flex;flex:1;overflow:hidden}
-#cwrap{flex:1;position:relative;overflow:hidden;background:#e8e5de}
+#cwrap{flex:1;position:relative;overflow:hidden;background:#e6e2da}
 canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none}
-#magnifier{position:absolute;width:140px;height:140px;border-radius:50%;border:2.5px solid #c8a96e;box-shadow:0 4px 24px rgba(0,0,0,.8);pointer-events:none;display:none;z-index:50}
+#magnifier{position:absolute;width:140px;height:140px;border-radius:50%;border:2.5px solid var(--gold-lt);box-shadow:0 4px 24px rgba(0,0,0,.8);pointer-events:none;display:none;z-index:50}
 #mag-cv{border-radius:50%;display:block}
 #mag-cross{position:absolute;inset:0;pointer-events:none}
-#mag-cross::before{content:'';position:absolute;width:1px;height:100%;left:calc(50% - .5px);top:0;background:#c8a96eaa}
-#mag-cross::after{content:'';position:absolute;height:1px;width:100%;top:calc(50% - .5px);left:0;background:#c8a96eaa}
-#sidebar{width:250px;border-left:1px solid #e0ddd8;display:flex;flex-direction:column;overflow:hidden;background:#111}
-.sh{padding:10px 14px;border-bottom:1px solid #e0ddd8;font-size:10px;color:#888;letter-spacing:1.5px;flex-shrink:0}
-#rlist{flex:1;overflow-y:auto;padding:6px}
-.rc{padding:10px;margin-bottom:4px;border-radius:6px;border:1px solid #ddd;position:relative;overflow:hidden}
-.rc:hover{background:#f8f6f2;border-color:#333}
-.rc.sel{background:#c8a96e15;border-color:#b8914a}
-.rn{font-weight:600;font-size:12px;color:#1a1a1a;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
-.rc.sel .rn span:first-child{color:#8a5f00}
-.edit-btn{font-size:9px;color:#888;border:1px solid #ccc;border-radius:3px;padding:2px 6px;background:transparent;cursor:pointer;font-family:inherit;flex-shrink:0}
-.edit-btn:hover{color:#c8a96e;border-color:#c8a96e}
-.rs{font-size:10px;color:#555;line-height:1.9;cursor:pointer}
-.rs b{color:#333}
-.rc.sel .rs b{color:#8a5f00}
-.net{color:#2a7ab8!important;font-weight:600}
-.entry-list{margin-top:4px}
-.entry-item{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#888;padding:2px 0;border-bottom:1px solid #1a1a1a}
+#mag-cross::before{content:'';position:absolute;width:1px;height:100%;left:calc(50% - .5px);top:0;background:rgba(200,169,110,.7)}
+#mag-cross::after{content:'';position:absolute;height:1px;width:100%;top:calc(50% - .5px);left:0;background:rgba(200,169,110,.7)}
+
+/* ── Sidebar ── */
+#sidebar{width:260px;border-left:1px solid var(--sidebar-border);display:flex;flex-direction:column;overflow:hidden;background:var(--sidebar-bg)}
+.sh{padding:10px 14px;border-bottom:1px solid var(--sidebar-border);font-size:10px;color:var(--txt3);letter-spacing:1.5px;font-weight:600;flex-shrink:0;background:var(--bg2);font-family:'DM Mono',monospace;text-transform:uppercase}
+#rlist{flex:1;overflow-y:auto;padding:8px}
+.rc{padding:10px 12px;margin-bottom:5px;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--bg2);position:relative;overflow:hidden;transition:border-color .12s,box-shadow .12s;cursor:pointer}
+.rc:hover{border-color:var(--border2);box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.rc.sel{background:#fdf9f3;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg)}
+.rn{font-weight:600;font-size:12px;color:var(--txt);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.rc.sel .rn span:first-child{color:var(--gold)}
+.edit-btn{font-size:9px;color:var(--txt3);border:1px solid var(--border2);border-radius:3px;padding:2px 6px;background:transparent;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all .12s}
+.edit-btn:hover{color:var(--gold);border-color:var(--gold)}
+.rs{font-size:10px;color:var(--txt2);line-height:1.9}
+.rs b{color:var(--txt)}
+.rc.sel .rs b{color:var(--gold)}
+.net{color:var(--blue)!important;font-weight:600}
+.entry-list{margin-top:5px}
+.entry-item{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--txt3);padding:3px 0;border-bottom:1px solid var(--border)}
 .entry-item:last-child{border-bottom:none}
-.entry-item span{color:#555;flex:1}
+.entry-item span{color:var(--txt2);flex:1}
 .entry-item .ev{text-align:right;margin-right:6px;flex-shrink:0}
-.entry-del{cursor:pointer;color:#c0392b;font-size:11px;flex-shrink:0}
-.add-row{display:flex;gap:4px;margin-top:6px}
-.add-row button{flex:1;padding:4px;background:transparent;border:1px dashed #333;border-radius:4px;color:#888;font-family:inherit;font-size:9px;cursor:pointer}
-.add-row button:hover{border-color:#555;color:#aaa}
-#totals{padding:10px 14px;border-top:1px solid #e0ddd8;display:none;flex-shrink:0}
-.tr{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
-.tl{color:#888}.tv{font-weight:600;color:#2a7ab8}.tv-net{font-weight:600;color:#1a8a44}
-#hint{padding:10px 14px;border-top:1px solid #e8e5e0;font-size:9px;color:#999;line-height:2;flex-shrink:0}
-#drop-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:10px}
-.di{width:52px;height:52px;border:1.5px dashed #333;border-radius:10px;display:flex;align-items:center;justify-content:center}
-.di svg{width:22px;height:22px;stroke:#555;fill:none}
-.dt{font-size:12px;color:#999}
+.entry-del{cursor:pointer;color:var(--red);font-size:11px;flex-shrink:0}
+.add-row{display:flex;gap:4px;margin-top:7px}
+.add-row button{flex:1;padding:5px 4px;background:transparent;border:1px dashed var(--border2);border-radius:var(--radius);color:var(--txt3);font-family:inherit;font-size:10px;cursor:pointer;transition:all .12s}
+.add-row button:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
+#totals{padding:12px 14px;border-top:1px solid var(--sidebar-border);display:none;flex-shrink:0;background:var(--bg2)}
+.tr{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
+.tl{color:var(--txt2)}.tv{font-weight:600;color:var(--blue)}.tv-net{font-weight:600;color:var(--green)}
+#hint{padding:10px 14px;border-top:1px solid var(--sidebar-border);font-size:10px;color:var(--txt3);line-height:1.9;flex-shrink:0;background:var(--bg2)}
+
+#drop-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;gap:12px}
+.di{width:56px;height:56px;border:1.5px dashed var(--border2);border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.6)}
+.di svg{width:24px;height:24px;stroke:var(--txt3);fill:none}
+.dt{font-size:13px;color:var(--txt3);font-weight:500}
 
 /* ── Modals ── */
-.mwrap{position:absolute;z-index:200;user-select:none;min-width:290px}
-.modal{background:#ffffff;border:1px solid #ccc;border-radius:10px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.6)}
-.mdrag{padding:10px 14px 9px;cursor:grab;border-bottom:1px solid #ddd;display:flex;align-items:center;justify-content:space-between;background:#1a1a1a}
+.mwrap{position:absolute;z-index:200;user-select:none;min-width:300px}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-lg)}
+.mdrag{padding:11px 14px;cursor:grab;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#f7f4ef}
 .mdrag:active{cursor:grabbing}
-.mtitle{font-size:13px;font-weight:600;color:#1a1a1a}
-.mbody{padding:16px}
-.modal label{display:block;font-size:10px;color:#888;letter-spacing:1.5px;margin-bottom:5px}
-.modal input,.modal select{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-family:inherit;font-size:13px;color:#1a1a1a;background:#f5f5f0;margin-bottom:12px;outline:none}
-.modal input:focus,.modal select:focus{border-color:#b8914a;outline:none}
+.mtitle{font-size:13px;font-weight:600;color:var(--txt)}
+.mbody{padding:18px}
+.modal label{display:block;font-size:10px;color:var(--txt3);letter-spacing:1.2px;font-weight:600;margin-bottom:5px;font-family:'DM Mono',monospace;text-transform:uppercase}
+.modal input,.modal select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--txt);background:var(--bg);margin-bottom:12px;outline:none;transition:border-color .15s}
+.modal input:focus,.modal select:focus{border-color:var(--gold)}
 .row2{display:flex;gap:8px}.row2>div{flex:1}
 .mbtns{display:flex;gap:8px;margin-top:4px}
-.bcl{flex:1;padding:8px;border:1px solid #ccc;border-radius:5px;background:transparent;cursor:pointer;font-family:inherit;font-size:11px;color:#888}
-.bcl:hover{background:#f0ede8}
-.bok{flex:2;padding:8px;border:none;border-radius:5px;background:#c8a96e;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:#111}
+.bcl{flex:1;padding:9px;border:1px solid var(--border);border-radius:var(--radius);background:transparent;cursor:pointer;font-family:inherit;font-size:12px;color:var(--txt2);transition:background .12s}
+.bcl:hover{background:var(--bg3)}
+.bok{flex:2;padding:9px;border:none;border-radius:var(--radius);background:var(--gold);cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#fff;transition:background .12s}
 .bok:disabled{opacity:.3;cursor:not-allowed}
-.bok:not(:disabled):hover{background:#d4b87e}
-.bok-green{background:#27ae60;color:#fff}
-.bok-green:hover{background:#2ecc71!important}
-.vob-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer}
-.vob-row input[type=checkbox]{width:auto;margin:0;cursor:pointer;accent-color:#c8a96e}
-.vob-row span{font-size:11px;color:#555;flex:1}
-
-/* overlay modal (project/floor create) */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:500}
-.overlay-modal{background:#ffffff;border:1px solid #ccc;border-radius:12px;padding:24px;min-width:300px;max-width:90vw}
-.overlay-modal h3{font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:16px}
-.overlay-modal label{display:block;font-size:10px;color:#888;letter-spacing:1.5px;margin-bottom:5px}
-.overlay-modal input{width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:5px;font-family:inherit;font-size:13px;color:#1a1a1a;background:#f5f5f0;margin-bottom:12px;outline:none}
-.overlay-modal input:focus{border-color:#c8a96e}
-.save-indicator{position:fixed;bottom:20px;right:20px;background:#27ae6015;border:1px solid #27ae6088;color:#1a8a44;padding:6px 12px;border-radius:5px;font-size:10px;font-family:ui-monospace,monospace;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.bok:not(:disabled):hover{background:var(--gold-lt)}
+.bok-green{background:var(--green);color:#fff}
+.bok-green:not(:disabled):hover{background:#22b05a!important}
+.vob-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer}
+.vob-row input[type=checkbox]{width:auto;margin:0;cursor:pointer;accent-color:var(--gold)}
+.vob-row span{font-size:11px;color:var(--txt2);flex:1}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;z-index:500;backdrop-filter:blur(2px)}
+.overlay-modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;min-width:320px;max-width:90vw;box-shadow:var(--shadow-lg)}
+.overlay-modal h3{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:18px}
+.overlay-modal label{display:block;font-size:10px;color:var(--txt3);letter-spacing:1.2px;font-weight:600;margin-bottom:5px;font-family:'DM Mono',monospace;text-transform:uppercase}
+.overlay-modal input{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--txt);background:var(--bg);margin-bottom:13px;outline:none;transition:border-color .15s}
+.overlay-modal input:focus{border-color:var(--gold)}
+.save-indicator{position:fixed;bottom:20px;right:20px;background:rgba(26,138,68,.1);border:1px solid rgba(26,138,68,.4);color:var(--green);padding:6px 14px;border-radius:var(--radius);font-size:10px;font-family:'DM Mono',monospace;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 .save-indicator.show{opacity:1}
 </style>
 </head>
@@ -139,7 +167,7 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── PROJECT SCREEN ── -->
 <div id="project-screen">
   <div id="project-header">
-    <span class="brand">AUFMASS</span><span style="font-size:10px;color:#c0392b;font-weight:700">v41</span>
+    <span class="brand">AUFMASS <small>Digitales Aufmaß</small></span>
     <button class="btn-new" onclick="openOverlay('project')">+ Neues Projekt</button>
   </div>
   <div id="project-list">
@@ -165,32 +193,51 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
 <!-- ── APP SCREEN ── -->
 <div id="app-screen">
   <div id="toolbar">
-    <button class="back-btn" onclick="showScreen('floor')" style="font-size:10px">←</button>
-    <span class="brand">AUFMASS</span>
-    <span class="sep">|</span>
-    <span class="floor-label" id="current-floor-label"></span>
-    <span class="sep">|</span>
-    <button class="tbtn active" id="btn-select" onclick="setTool('select')">↖</button>
-    <button class="tbtn" id="btn-ref" onclick="setTool('ref')">Ref setzen / bearbeiten</button>
-    <span id="btn-draw-active" style="display:none;padding:4px 10px;background:#b8914a22;border:1px solid #b8914a;border-radius:5px;font-size:11px;color:#8a5f00;font-weight:600">✦ Raum zeichnen aktiv</span>
-    <button class="tbtn" id="btn-add-room" onclick="activateDraw()" style="background:#b8914a22;border-color:#b8914a;color:#8a5f00;font-weight:600">+ Raum</button>
-    <div class="spacer"></div>
-    <button class="tbtn confirm" id="btn-ref-confirm" style="display:none" onclick="confirmRef()">✓ Bestätigen</button>
-    <button class="tbtn" id="btn-schnitt-draw" style="display:none" onclick="startSchnittDraw()">✦ Schnitt zeichnen</button>
-    <button class="tbtn confirm" id="btn-schnitt-confirm" style="display:none" onclick="confirmSchnitt()">✓ Auswerten</button>
-    <button class="tbtn" id="btn-schnitt-undo" style="display:none" onclick="schnittUndo()">Letzten Schnittpunkt löschen</button>
-    <button class="tbtn warn" id="btn-trauf" style="display:none" onclick="setTool('trauf')">🏠 Traufseite</button>
-    <button class="tbtn" id="btn-undo" style="display:none" onclick="undoPoint()">Letzten Punkt löschen</button>
-    <button class="tbtn" id="btn-close" style="display:none" onclick="openRoomModal()">Raum speichern</button>
-    <button class="tbtn" id="btn-esc" style="display:none" onclick="cancelDraw()">Zeichnen abbrechen</button>
-    <button class="tbtn warn" id="btn-ref-reset" onclick="resetRef()">Ref löschen</button>
-    <button class="tbtn danger" id="btn-del" style="display:none" onclick="deleteSelected()">🗑</button>
-    <button class="tbtn export" onclick="openExportModal()" id="btn-export" style="display:none">↓ PDF</button>
-    <button class="tbtn" id="btn-gdr" onclick="setView('grundriss')" style="display:none">📐 Grundriss</button>
-    <button class="tbtn" id="btn-sch" onclick="setView('schnitt')" style="display:none">✂ Schnitt</button>
-    <button class="tbtn" onclick="rotatePlan()">↻ Drehen</button>
-    <button class="tbtn" onclick="document.getElementById('fi').click()">+ PDF / Foto</button>
-    <input id="fi" type="file" accept="application/pdf,image/*" style="display:none" onchange="loadFile(this)">
+    <!-- Zeile 1: Navigation + Plan laden + Ansichten + Export -->
+    <div class="tb-row">
+      <button class="back-btn" onclick="showScreen('floor')">← Zurück</button>
+      <div class="tb-sep"></div>
+      <span class="brand-sm">AUFMASS</span>
+      <span class="floor-label" id="current-floor-label"></span>
+      <div class="tb-sep"></div>
+      <button class="tbtn primary" onclick="document.getElementById('fi').click()">↑ Plan laden</button>
+      <input id="fi" type="file" accept="application/pdf,image/*" style="display:none" onchange="loadFile(this)">
+      <button class="tbtn" id="btn-rotate" onclick="rotatePlan()">↻ Drehen</button>
+      <div class="tb-sep" id="sep-views" style="display:none"></div>
+      <button class="tbtn" id="btn-gdr" onclick="setView('grundriss')" style="display:none">📐 Grundriss</button>
+      <button class="tbtn" id="btn-sch" onclick="setView('schnitt')" style="display:none">✂ Schnitt</button>
+      <div class="spacer"></div>
+      <button class="tbtn export" onclick="openExportModal()" id="btn-export" style="display:none">↓ PDF Export</button>
+    </div>
+    <!-- Zeile 2: Werkzeuge -->
+    <div class="tb-row" id="tb-tools">
+      <span class="tb-label">Referenz</span>
+      <div class="tb-group">
+        <button class="tbtn" id="btn-ref" onclick="setTool('ref')">Ref setzen</button>
+        <button class="tbtn confirm" id="btn-ref-confirm" style="display:none" onclick="confirmRef()">✓ Bestätigen</button>
+        <button class="tbtn warn" id="btn-ref-reset" onclick="resetRef()">Ref löschen</button>
+      </div>
+      <div class="tb-sep"></div>
+      <span class="tb-label">Raum</span>
+      <div class="tb-group">
+        <button class="tbtn" id="btn-select" onclick="setTool('select')">Raum anpassen</button>
+        <button class="tbtn" id="btn-add-room" onclick="activateDraw()">＋ Raum zeichnen</button>
+        <span id="btn-draw-active" style="display:none">✦ Zeichnen aktiv</span>
+        <button class="tbtn" id="btn-undo" style="display:none" onclick="undoPoint()">↩ Punkt löschen</button>
+        <button class="tbtn confirm" id="btn-close" style="display:none" onclick="openRoomModal()">✓ Raum speichern</button>
+        <button class="tbtn danger" id="btn-esc" style="display:none" onclick="cancelDraw()">✕ Abbrechen</button>
+        <button class="tbtn danger" id="btn-del" style="display:none" onclick="deleteSelected()">🗑 Löschen</button>
+      </div>
+      <!-- Dach-spezifische Werkzeuge -->
+      <div class="tb-sep" id="sep-dach" style="display:none"></div>
+      <div class="tb-group" id="grp-dach" style="display:none">
+        <span class="tb-label">Dach</span>
+        <button class="tbtn warn" id="btn-trauf" onclick="setTool('trauf')">Traufseite markieren</button>
+        <button class="tbtn" id="btn-schnitt-draw" onclick="startSchnittDraw()">✦ Schnitt zeichnen</button>
+        <button class="tbtn confirm" id="btn-schnitt-confirm" style="display:none" onclick="confirmSchnitt()">✓ Auswerten</button>
+        <button class="tbtn" id="btn-schnitt-undo" style="display:none" onclick="schnittUndo()">↩ Punkt löschen</button>
+      </div>
+    </div>
   </div>
   <div id="statusbar">
     <span id="st-z">Zoom 100%</span>
@@ -266,10 +313,10 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
     </div>
 
     <div id="sidebar">
-      <div class="sh">AUFMASS</div>
+      <div class="sh">Räume & Flächen</div>
       <div id="rlist"></div>
       <div id="totals"></div>
-      <div id="hint">Ref setzen: 2 Punkte → ✓ Bestätigen → Maß eingeben<br>"Letzten Punkt löschen" entfernt nur den letzten Zeichenpunkt<br>"Ref löschen" entfernt das komplette Referenzmaß<br>Kante anklicken = Punkt einfügen<br>Lang drücken = Lupe</div>
+      <div id="hint" style="color:var(--txt3)">Ref setzen: 2 Punkte → ✓ Bestätigen → Maß eingeben<br>"Letzten Punkt löschen" entfernt nur den letzten Zeichenpunkt<br>"Ref löschen" entfernt das komplette Referenzmaß<br>Kante anklicken = Punkt einfügen<br>Lang drücken = Lupe</div>
     </div>
   </div>
 </div>
@@ -443,11 +490,16 @@ async function loadProjects(){
 function renderProjects(){
   const list=document.getElementById('project-list');
   document.getElementById('project-empty').style.display=projects.length?'none':'block';
-  const cards=projects.map(p=>`
-    <div class="project-card" onclick="openProject('${p.id}')">
+  const cards=projects.map(p=>{
+    const created=p.created_at?new Date(p.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+    const updated=p.updated_at&&p.updated_at!==p.created_at?new Date(p.updated_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+    return `<div class="project-card" onclick="openProject('${p.id}')">
+      <div class="project-card-badge">Projekt</div>
       <div class="project-card-name">${p.name}</div>
-      <div class="project-card-meta">${p.client||''}${p.client&&p.author?' · ':''}${p.author||''}</div>
-    </div>`).join('');
+      ${p.client?`<div class="project-card-client">Auftraggeber: ${p.client}</div>`:''}
+      ${p.author?`<div class="project-card-client">Von: ${p.author}</div>`:''}
+      <div class="project-card-dates">${created?'Erstellt: '+created+'<br>':''}${updated?'Geändert: '+updated:''}</div>
+    </div>`;}).join('');
   list.innerHTML='<div id="project-empty" style="display:none" class="empty-state">Noch keine Projekte.<br>Tippe auf „+ Neues Projekt".</div>'+cards;
 }
 
@@ -571,7 +623,10 @@ async function openFloor(id){
   const _isDach=currentFloor.dach_config&&currentFloor.dach_config.aktiv;
   ['btn-gdr','btn-sch'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=_isDach?'':'none';});
   const _trf=document.getElementById('btn-trauf');if(_trf)_trf.style.display=_isDach?'':'none';
-  updPageNav();updStatus();updSidebar();syncDebugState();draw();
+  const _sepV=document.getElementById('sep-views');if(_sepV)_sepV.style.display=_isDach?'':'none';
+  const _grpD=document.getElementById('grp-dach');if(_grpD)_grpD.style.display=_isDach?'flex':'none';
+  const _sepD=document.getElementById('sep-dach');if(_sepD)_sepD.style.display=_isDach?'':'none';
+  updPageNav();updStatus();updSidebar();syncDebugState();draw();updToolbarLockState();
 }
 
 async function deleteFloor(id){
@@ -733,9 +788,10 @@ function openOverlay(mode){
     title.textContent='Neues Geschoss';
     body.innerHTML=`
       <label>BEZEICHNUNG *</label><input id="ov-name" placeholder="z.B. Erdgeschoss, Dachgeschoss">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:8px 10px;background:#f5f5f0;border:1px solid #ccc;border-radius:5px;cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked">
-        <input type="checkbox" id="ov-dach" onclick="event.stopPropagation()" style="width:auto;margin:0;accent-color:#c8a96e">
-        <span style="font-size:11px;color:#888">Dieses Geschoss hat Dachschrägen</span>
+      <label>STANDARD-RAUMHÖHE (m)</label><input id="ov-height" type="number" value="2.50" step="0.01" min="1" max="10" placeholder="2.50">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked">
+        <input type="checkbox" id="ov-dach" onclick="event.stopPropagation()" style="width:auto;margin:0;accent-color:var(--gold)">
+        <span style="font-size:11px;color:var(--txt2)">Dieses Geschoss hat Dachschrägen</span>
       </div>`;
     ok.textContent='Erstellen';
   }
@@ -764,7 +820,7 @@ async function overlayConfirm(){
     const dachCb=document.getElementById('ov-dach');
     const hasDach=dachCb&&dachCb.checked;
     const dachData=hasDach?{aktiv:true}:null;
-    const defaultHeight=2.5;
+    const defaultHeight=parseFloat(document.getElementById('ov-height')?.value)||2.5;
     const res=await sb.post('floors',{project_id:currentProject.id,name,sort_order:floors.length,dach_config:dachData,default_height:defaultHeight});
     if(res&&res[0]){floors.push(res[0]);renderFloors();}
   }
@@ -1550,14 +1606,23 @@ function activateDraw(){
 function setTool(t){tool=t;
   ['select','ref'].forEach(id=>{const b=document.getElementById('btn-'+id);if(b)b.classList.toggle('active',id===t);});
   const addBtn=document.getElementById('btn-add-room');
-  if(addBtn){
-    addBtn.style.display=t==='draw'?'none':'';
-    addBtn.style.background=t==='draw'?'':'#b8914a22';
-  }
-  // Show active draw indicator
+  if(addBtn)addBtn.style.display=t==='draw'?'none':'';
   const drawInd=document.getElementById('btn-draw-active');
-  if(drawInd)drawInd.style.display=t==='draw'?'':'none';if(t!=='draw')curPts=[];drag=null;hoverPt=null;hoverEdge=null;hideMag();updStatus();draw();}
-function selR(i){selRoom=selRoom===i?null:i;updStatus();updSidebar();syncDebugState();draw();}
+  if(drawInd)drawInd.style.display=t==='draw'?'':'none';
+  if(t!=='draw'){curPts=[];drag=null;hoverPt=null;hoverEdge=null;hideMag();}
+  updStatus();draw();
+}
+function selR(i){
+  selRoom=selRoom===i?null:i;
+  updStatus();updSidebar();syncDebugState();draw();
+  // Scroll selected room into view in sidebar
+  if(selRoom!==null){
+    setTimeout(()=>{
+      const els=document.querySelectorAll('.rc');
+      if(els[selRoom])els[selRoom].scrollIntoView({behavior:'smooth',block:'nearest'});
+    },50);
+  }
+}
 async function deleteSelected(){if(selRoom===null)return;const rm=rooms[selRoom];if(rm.id)await deleteRoomFromDB(rm.id);rooms.splice(selRoom,1);selRoom=null;updStatus();updSidebar();syncDebugState();draw();}
 function undoPoint(){if(curPts.length>0){curPts.pop();updStatus();draw();}}
 function cancelDraw(){curPts=[];drag=null;hideMag();updStatus();draw();}
@@ -1572,7 +1637,7 @@ async function resetRef(){
   }
   scale=null;refPts=[];refConfirmed=false;
   await saveFloorState();
-  setTool('ref');updStatus();updSidebar();syncDebugState();draw();scheduleSave();
+  setTool('ref');updStatus();updSidebar();syncDebugState();draw();updToolbarLockState();scheduleSave();
 }
 async function delEntry(ri,key,ei){rooms[ri][key].splice(ei,1);await saveRoom(rooms[ri]);updSidebar();updStatus();}
 
@@ -1615,7 +1680,7 @@ async function closeRoom(ok){
   if(ok){const n=document.getElementById('m-name').value.trim(),h=parseFloat(document.getElementById('m-h').value)||2.5;
     if(n){if(editRoomIdx!==null){rooms[editRoomIdx].name=n;rooms[editRoomIdx].height=h;await saveRoom(rooms[editRoomIdx]);}
     else if(pendingPts){const rm={name:n,height:h,points:pendingPts,abzuege:[],zusaetze:[]};rooms.push(rm);await saveRoom(rm);}}}
-  editRoomIdx=null;pendingPts=null;curPts=[];updStatus();updSidebar();syncDebugState();draw();
+  editRoomIdx=null;pendingPts=null;curPts=[];setTool('select');updStatus();updSidebar();syncDebugState();draw();
 }
 async function closeRef(ok){
   document.getElementById('mw-ref').style.display='none';
@@ -1771,7 +1836,15 @@ function handleTap(wx,wy){
     }
     return;
   }
-  if(tool==='select'){let found=-1;rooms.forEach((rm,i)=>{if(ptInPoly(wx,wy,rm.points))found=i;});selRoom=found>=0?found:null;updStatus();updSidebar();syncDebugState();draw();return;}
+  if(tool==='select'){
+    let found=-1;rooms.forEach((rm,i)=>{if(ptInPoly(wx,wy,rm.points))found=i;});
+    selRoom=found>=0?found:null;
+    updStatus();updSidebar();syncDebugState();draw();
+    if(selRoom!==null){
+      setTimeout(()=>{const els=document.querySelectorAll('.rc');if(els[selRoom])els[selRoom].scrollIntoView({behavior:'smooth',block:'nearest'});},50);
+    }
+    return;
+  }
   if(tool==='ref'){
     if(refConfirmed)return; // already confirmed, ignore taps
     if(refPts.length<2){const s=getSnap(wx,wy);refPts.push({x:s.x,y:s.y});updStatus();}
@@ -1953,7 +2026,7 @@ async function showPage(pageNum,isSchnitt=false){
     document.getElementById('drop-hint').style.display='none';
     await savePlanSnapshot(dataUrl,false,pageNum);
   }
-  updPageNav();draw();
+  updPageNav();draw();updToolbarLockState();
 }
 
 function updPageNav(){
@@ -2044,12 +2117,22 @@ function setView(v){
     refConfirmed=scaleGrundriss!==null && refPtsGrundriss.length===2;
   }
   const isDach=currentFloor&&currentFloor.dach_config&&currentFloor.dach_config.aktiv;
-  document.getElementById('btn-gdr')&&(document.getElementById('btn-gdr').style.display=isDach?'':'none');
-  document.getElementById('btn-sch')&&(document.getElementById('btn-sch').style.display=isDach?'':'none');
-  document.getElementById('btn-schnitt-draw')&&(document.getElementById('btn-schnitt-draw').style.display=isDach&&v==='schnitt'&&!schnittDrawMode?'':'none');
-  document.getElementById('btn-trauf')&&(document.getElementById('btn-trauf').style.display=isDach&&v==='grundriss'?'':'none');
-  document.getElementById('btn-gdr')&&document.getElementById('btn-gdr').classList.toggle('active',v==='grundriss');
-  document.getElementById('btn-sch')&&document.getElementById('btn-sch').classList.toggle('active',v==='schnitt');
+  const _gdr=document.getElementById('btn-gdr');
+  const _sch=document.getElementById('btn-sch');
+  const _svs=document.getElementById('sep-views');
+  const _grpDach=document.getElementById('grp-dach');
+  const _sepDach=document.getElementById('sep-dach');
+  const _sdBtn=document.getElementById('btn-schnitt-draw');
+  const _trauf=document.getElementById('btn-trauf');
+  if(_gdr)_gdr.style.display=isDach?'':'none';
+  if(_sch)_sch.style.display=isDach?'':'none';
+  if(_svs)_svs.style.display=isDach?'':'none';
+  if(_grpDach)_grpDach.style.display=isDach?'flex':'none';
+  if(_sepDach)_sepDach.style.display=isDach?'':'none';
+  if(_sdBtn)_sdBtn.style.display=isDach&&v==='schnitt'&&!schnittDrawMode?'':'none';
+  if(_trauf)_trauf.style.display=isDach&&v==='grundriss'?'':'none';
+  if(_gdr)_gdr.classList.toggle('active',v==='grundriss');
+  if(_sch)_sch.classList.toggle('active',v==='schnitt');
   updPageNav();
   zoom=1;panX=0;panY=0;
   const sdBtn=document.getElementById('btn-schnitt-draw');
@@ -2060,7 +2143,7 @@ function setView(v){
     if(scBtn)scBtn.style.display=schnittPts.length>=5?'':'none';
     if(suBtn)suBtn.style.display=schnittPts.length>0?'':'none';
   } else {
-    if(sdBtn)sdBtn.style.display='none';
+    if(sdBtn)sdBtn.style.display=isDach?'none':'none';
     if(scBtn)scBtn.style.display='none';
     if(suBtn)suBtn.style.display='none';
     schnittDrawMode=false;
@@ -2187,6 +2270,17 @@ function initSwipeDelete(){
   },{passive:true});
 }
 
+
+// ── TOOLBAR LOCK STATE (no plan = locked) ───────────────────
+function updToolbarLockState(){
+  const hasPlan=!!(img||schnittImg);
+  const lockable=['btn-ref','btn-ref-reset','btn-select','btn-add-room'];
+  lockable.forEach(id=>{
+    const b=document.getElementById(id);
+    if(b){b.classList.toggle('tb-locked',!hasPlan);}
+  });
+  // Ref-confirm and draw buttons are contextual, not locked here
+}
 // ── INIT ─────────────────────────────────────────────────
 showScreen('project');
 </script>
