@@ -317,8 +317,9 @@ canvas{display:block;touch-action:none;-webkit-user-select:none;user-select:none
             <label class="exp-check-row"><input type="checkbox" id="exp-wand-brutto" checked><span>Wand brutto</span></label>
             <label class="exp-check-row"><input type="checkbox" id="exp-wand-netto" checked><span>Wand netto</span></label>
             <label class="exp-check-row"><input type="checkbox" id="exp-abzuege" checked><span>Abzüge / Zusätze</span></label>
-            <label class="exp-check-row"><input type="checkbox" id="exp-laufmeter" checked><span>Laufende Meter</span></label>
             <label class="exp-check-row"><input type="checkbox" id="exp-raumhoehe" checked><span>Raumhöhe</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-sockel" checked><span>Sockelleisten</span></label>
+            <label class="exp-check-row"><input type="checkbox" id="exp-acryl" checked><span>Acryl (lfd. Meter)</span></label>
             <label class="exp-check-row"><input type="checkbox" id="exp-dach"><span>Dach-Detailwerte</span></label>
           </div>
           <div class="mbtns">
@@ -1555,7 +1556,7 @@ function updSidebar(){
     const zusHtml=(rm.zusaetze||[]).map((e,ei)=>`<div class="entry-item"><span>↑ ${e.name} ${e.b.toFixed(2)}×${e.h.toFixed(2)} ×${e.n}</span><span class="ev" style="color:#a8e6cf">+${calcZusatz(e).toFixed(2)} m²</span><span class="entry-del" onclick="delEntry(${i},'zusaetze',${ei});event.stopPropagation()">✕</span></div>`).join('');
     const{a,wG,abzSum,zusSum,wN,sockel,acrylWD,innenecken,dachStats}=roomStats(rm);
     const lmSection=a!==null?('<br><span style="color:#555;font-size:9px">── Laufende Meter ──</span>'
-      +'<br>Sockelleiste: <b>'+(sockel!==null?sockel.toFixed(2):'?')+' m</b>'
+      +'<br>Sockelleisten: <b>'+(sockel!==null?sockel.toFixed(2):'?')+' m</b>'
       +'<br>Acryl Wand/Decke: <b>'+(acrylWD!==null?acrylWD.toFixed(2):'?')+' m</b>'
       +'<br>Acryl Wand/Wand: <b>'+(a!==null?(innenecken*rm.height).toFixed(2):'?')+' m</b>'
       +(dachStats?('<br><span style="color:#c8a96e;font-size:9px">── Dachflächen / Decke ──</span>'
@@ -1752,8 +1753,9 @@ function closeExport(ok){
     wandBrutto:   document.getElementById('exp-wand-brutto')?.checked!==false,
     wandNetto:    document.getElementById('exp-wand-netto')?.checked!==false,
     abzuege:      document.getElementById('exp-abzuege')?.checked!==false,
-    laufmeter:    document.getElementById('exp-laufmeter')?.checked!==false,
     raumhoehe:    document.getElementById('exp-raumhoehe')?.checked!==false,
+    sockel:       document.getElementById('exp-sockel')?.checked!==false,
+    acryl:        document.getElementById('exp-acryl')?.checked!==false,
     dach:         document.getElementById('exp-dach')?.checked===true,
   };
   generatePDF(
@@ -1811,6 +1813,19 @@ function generatePDF(project,client,author,opts={}){
     if(dachStats&&opts.dach){checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(120,100,60);doc.text('  Decke flach: '+dachStats.deckeFlach.toFixed(2)+' m² · Schräge: '+dachStats.schraegeFlaeche.toFixed(2)+' m² · Decke gesamt: '+dachStats.deckeGesamt.toFixed(2)+' m²',ML+2,y+4);y+=6;}
     if(opts.abzuege!==false)(rm.abzuege||[]).forEach(e=>{checkPage(6);const eff=calcAbzug(e);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(160,60,60);doc.text('  − '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n+(e.vob?' (VOB)':'')+(eff===0?' → nicht abgezogen':''),ML+2,y+4);if(eff>0)doc.text('-'+eff.toFixed(2)+' m²',colX.delta,y+4);y+=6;});
     if(opts.abzuege!==false)(rm.zusaetze||[]).forEach(e=>{checkPage(6);doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(40,120,80);doc.text('  + '+e.name+': '+e.b.toFixed(2)+'×'+e.h.toFixed(2)+' m × '+e.n,ML+2,y+4);doc.text('+'+calcZusatz(e).toFixed(2)+' m²',colX.delta,y+4);y+=6;});
+    // Laufende Meter: Sockelleisten
+    if(opts.sockel!==false&&a!==null){
+      const{sockel:sk,per:pr}=roomStats(rm);
+      if(sk!==null){checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(60,100,140);doc.text('  Sockelleisten: '+sk.toFixed(2)+' m',ML+2,y+4);y+=6;}
+    }
+    // Laufende Meter: Acryl
+    if(opts.acryl!==false&&a!==null){
+      const{acrylWD:awd,innenecken:iec}=roomStats(rm);
+      if(awd!==null){
+        checkPage(6);doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setFillColor(...rowColor);doc.rect(ML,y,CW,5.5,'F');doc.setTextColor(60,100,140);
+        doc.text('  Acryl Wand/Decke: '+awd.toFixed(2)+' m  ·  Acryl Wand/Wand: '+(iec*rm.height).toFixed(2)+' m',ML+2,y+4);y+=6;
+      }
+    }
     y+=2;if(a!==null){totalWG+=wG;totalWN+=wN;if(dachStats){totalCeil+=dachStats.deckeGesamt;totalCeilFlat+=dachStats.deckeFlach;totalSlope+=dachStats.schraegeFlaeche;}else{totalCeil+=a;}}
   });
   checkPage(22);y+=4;
