@@ -638,6 +638,10 @@ async function openFloor(id){
     points:denormalizePtsForView((rm.pointsNorm||rm.points||[]),'grundriss')
   }));
   // Fix 2: sync scale alias explicitly after geometry is applied
+  // Dachgeschoss: immer im Schnitt starten wenn noch kein Schnitt vorhanden
+  if(currentFloor.dach_config?.aktiv && !scaleSchnitt && !schnittImg){
+    viewMode='schnitt';
+  }
   scale=viewMode==='schnitt'?scaleSchnitt:scaleGrundriss;
   refConfirmed=(scale!==null)&&(viewMode==='schnitt'?refPtsSchnitt.length===2:refPtsGrundriss.length===2);
   refPts=viewMode==='schnitt'?[...refPtsSchnitt]:[...refPtsGrundriss];
@@ -810,10 +814,12 @@ function openOverlay(mode){
     title.textContent='Neues Geschoss';
     body.innerHTML=`
       <label>BEZEICHNUNG *</label><input id="ov-name" placeholder="z.B. Erdgeschoss, Dachgeschoss">
-      <label>STANDARD-RAUMHÖHE (m)</label><input id="ov-height" type="number" value="2.50" step="0.01" min="1" max="10" placeholder="2.50">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked">
-        <input type="checkbox" id="ov-dach" onclick="event.stopPropagation()" style="width:auto;margin:0;accent-color:var(--gold)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer" onclick="const cb=document.getElementById('ov-dach');cb.checked=!cb.checked;document.getElementById('ov-height-row').style.display=cb.checked?'none':'';">
+        <input type="checkbox" id="ov-dach" onclick="event.stopPropagation();document.getElementById('ov-height-row').style.display=this.checked?'none':'';" style="width:auto;margin:0;accent-color:var(--gold)">
         <span style="font-size:11px;color:var(--txt2)">Dieses Geschoss hat Dachschrägen</span>
+      </div>
+      <div id="ov-height-row">
+        <label>STANDARD-RAUMHÖHE (m)</label><input id="ov-height" type="number" value="2.50" step="0.01" min="1" max="10" placeholder="2.50">
       </div>`;
     ok.textContent='Erstellen';
   }
@@ -2237,7 +2243,7 @@ function setView(v){
     if(suBtn)suBtn.style.display='none';
     schnittDrawMode=false;
   }
-  draw();updStatus();updSidebar();syncDebugState();
+  draw();updStatus();updSidebar();syncDebugState();updToolbarLockState();
 }
 
 function startSchnittDraw(){
