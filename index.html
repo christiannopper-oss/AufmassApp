@@ -1859,7 +1859,7 @@ document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;cv.st
 // ── TAP HANDLER ────────────────────────────────────────────
 function handleTap(wx,wy){
   if(viewMode==='schnitt'){
-    if(schnittDrawMode){
+    if(schnittDrawMode&&tool!=='ref'){
       // Close polygon if clicking near first point (like rooms)
       if(schnittPts.length>=4){
         const fp=schnittPts[0];
@@ -1881,15 +1881,21 @@ function handleTap(wx,wy){
         draw();
       }
     }
-    // In schnitt view, ref tool uses the same confirm flow as im Grundriss
+    // In schnitt view, ref tool
     if(!schnittDrawMode&&tool==='ref'){
       if(refConfirmed)return;
       if(refPts.length<2){
         const s=getSnap(wx,wy);
         refPts.push({x:s.x,y:s.y});
+        if(refPts.length===2){
+          // show confirm button immediately like Grundriss
+          const cb=document.getElementById('btn-ref-confirm');
+          if(cb)cb.style.display='';
+        }
         updStatus();
       }
       draw();
+      return;
     }
     return;
   }
@@ -1921,8 +1927,16 @@ function handleTap(wx,wy){
     return;
   }
   if(tool==='ref'){
-    if(refConfirmed)return; // already confirmed, ignore taps
-    if(refPts.length<2){const s=getSnap(wx,wy);refPts.push({x:s.x,y:s.y});updStatus();}
+    if(refConfirmed)return;
+    if(refPts.length<2){
+      const s=getSnap(wx,wy);
+      refPts.push({x:s.x,y:s.y});
+      if(refPts.length===2){
+        const cb=document.getElementById('btn-ref-confirm');
+        if(cb)cb.style.display='';
+      }
+      updStatus();
+    }
     draw();return;
   }
   if(tool==='draw'){if(isClosing(wx,wy)){mouseW=null;snapInfo=null;openRoomModal();return;}const s=getSnap(wx,wy);curPts.push({x:s.x,y:s.y});updStatus();draw();}
@@ -1966,7 +1980,7 @@ cv.addEventListener('mouseup',async e=>{
   if(drag){const rm=rooms[drag.roomIdx];await saveRoom(rm);drag=null;updSidebar();draw();}
   isPanning=false;
 });
-cv.addEventListener('dblclick',()=>{if(tool==='draw'&&curPts.length>=3)openRoomModal();});
+// dblclick removed: closing via isClosing() snap or 'Raum speichern' button
 cv.addEventListener('contextmenu',e=>{e.preventDefault();if(tool==='draw'&&curPts.length>0){curPts.pop();updStatus();draw();}});
 cv.addEventListener('wheel',e=>{
   e.preventDefault();
