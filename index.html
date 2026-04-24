@@ -525,17 +525,6 @@ async function openFloor(id){
   scaleSchnitt=(currentFloor.scale_schnitt ?? localState.scaleSchnitt ?? null);
   scale=scaleGrundriss;
 
-  // show/hide dach buttons
-  const isDach=currentFloor.dach_config&&currentFloor.dach_config.aktiv;
-  setTimeout(()=>{
-    const gdr=document.getElementById('btn-gdr');
-    const sch=document.getElementById('btn-sch');
-    const trf=document.getElementById('btn-trauf');
-    if(gdr)gdr.style.display=isDach?'':'none';
-    if(sch)sch.style.display=isDach?'':'none';
-    if(trf)trf.style.display=isDach?'':'none';
-  },100);
-
   // load rooms
   const rawRooms=await sb.get('rooms','?floor_id=eq.'+currentFloor.id+'&order=created_at.asc')||[];
   rooms=rawRooms.map(rm=>({
@@ -555,21 +544,34 @@ async function openFloor(id){
   document.getElementById('exp-author').value=currentProject.author||'';
 
   showScreen('app');
-  setTimeout(async ()=>{
-    await restoreSavedPlans();
-    applyPersistedGeometry();
-    rooms = rooms.map(rm=>({
-      ...rm,
-      points: denormalizePtsForView((rm.pointsNorm||rm.points||[]),'grundriss')
-    }));
-    refConfirmed=((viewMode==='schnitt'?scaleSchnitt:scaleGrundriss)!==null) && (viewMode==='schnitt'?refPtsSchnitt.length===2:refPtsGrundriss.length===2);
-    refPts=[...refPtsGrundriss];
-    updPageNav();
-    updStatus();
-    updSidebar();
-    syncDebugState();
-    draw();
-  },120);
+  // Wait until the canvas has real dimensions before denormalizing points.
+  // Poll with rAF instead of a fixed timeout – safe on slow devices and large PDFs.
+  await new Promise(resolve=>{
+    const check=()=>{
+      const r=wrap.getBoundingClientRect();
+      if(r.width>0&&r.height>0){resolve();return;}
+      requestAnimationFrame(check);
+    };
+    check();
+  });
+  cv.width=wrap.getBoundingClientRect().width;
+  cv.height=wrap.getBoundingClientRect().height;
+  await restoreSavedPlans();       // sets imgX/imgY/imgW/imgH first
+  applyPersistedGeometry();        // denormalizes ref/schnitt pts – imgW/imgH now valid
+  // Fix 4: denormalize room points only after the image frame is established
+  rooms=rooms.map(rm=>({
+    ...rm,
+    points:denormalizePtsForView((rm.pointsNorm||rm.points||[]),'grundriss')
+  }));
+  // Fix 2: sync scale alias explicitly after geometry is applied
+  scale=viewMode==='schnitt'?scaleSchnitt:scaleGrundriss;
+  refConfirmed=(scale!==null)&&(viewMode==='schnitt'?refPtsSchnitt.length===2:refPtsGrundriss.length===2);
+  refPts=viewMode==='schnitt'?[...refPtsSchnitt]:[...refPtsGrundriss];
+  // Dach buttons – moved here from the now-removed fragile setTimeout above
+  const _isDach=currentFloor.dach_config&&currentFloor.dach_config.aktiv;
+  ['btn-gdr','btn-sch'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=_isDach?'':'none';});
+  const _trf=document.getElementById('btn-trauf');if(_trf)_trf.style.display=_isDach?'':'none';
+  updPageNav();updStatus();updSidebar();syncDebugState();draw();
 }
 
 async function deleteFloor(id){
@@ -972,8 +974,15 @@ function resize(){
   if(currentFloor && (currentFloor.plan_data || currentFloor.schnitt_plan_data) && r.width && r.height){
     restoreSavedPlans().then(()=>{
       applyPersistedGeometry();
-      refPts = viewMode==='schnitt' ? [...refPtsSchnitt] : [...refPtsGrundriss];
-      draw();
+      // Re-denormalize room points after resize so they stay on the plan
+      rooms=rooms.map(rm=>({
+        ...rm,
+        points:denormalizePtsForView((rm.pointsNorm||rm.points||[]),'grundriss')
+      }));
+      // Fix 2: keep scale alias in sync
+      scale=viewMode==='schnitt'?scaleSchnitt:scaleGrundriss;
+      refPts=viewMode==='schnitt'?[...refPtsSchnitt]:[...refPtsGrundriss];
+      updSidebar();draw();
     });
   } else {
     draw();
@@ -1623,9 +1632,8 @@ async function closeRef(ok){
       if(viewMode==='schnitt'){
         scaleSchnitt=scale;
         refPtsSchnitt=[...refPts];
+        // Fix 3: persistedRefPtsSchnittRaw kept in sync for applyPersistedGeometry on resize
         persistedRefPtsSchnittRaw=normalizePtsForView(refPtsSchnitt,'schnitt');
-        // Show schnitt draw button
-        setTimeout(()=>setView('schnitt'),50);
       } else {
         scaleGrundriss=scale;
         refPtsGrundriss=[...refPts];
@@ -1635,7 +1643,10 @@ async function closeRef(ok){
       scheduleSave();
     }
   }
-  refConfirmed=(refPts.length===2 && !!scale);setTool('draw');updStatus();updSidebar();syncDebugState();draw();
+  refConfirmed=(refPts.length===2 && !!scale);
+  // Fix 2: always keep scale alias in sync with the active view
+  scale=viewMode==='schnitt'?scaleSchnitt:scaleGrundriss;
+  setTool('draw');updStatus();updSidebar();syncDebugState();draw();
 }
 function openEntry(ri,mode){entryTarget={roomIdx:ri,mode};document.getElementById('entry-modal-title').textContent=mode==='abzug'?'Abzug hinzufügen':'Zusatzfläche hinzufügen';document.getElementById('e-name').value=mode==='abzug'?'Tür':'Stichwand';document.getElementById('e-b').value=mode==='abzug'?'0.90':'1.00';document.getElementById('e-h').value=mode==='abzug'?'2.00':'1.20';document.getElementById('e-n').value='1';document.getElementById('e-vob').checked=false;document.getElementById('vob-row').style.display=mode==='abzug'?'flex':'none';centerModal('mw-entry');setTimeout(()=>document.getElementById('e-name').focus(),50);}
 async function closeEntry(ok){
